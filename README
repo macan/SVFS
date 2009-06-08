@@ -1,0 +1,8 @@
+Writter: Ma Can <macan@ncic.ac.cn>
+Time-stamp: <2009-06-08 09:45:25 macan>
+
+1. What is SVFS?
+
+   A unified file system for multi-purpose/multi-tier storage systems. It
+   builds on top of some different file systems, and provides a single
+   namespace.
