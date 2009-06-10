@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-08 20:43:38 macan>
+ * Time-stamp: <2009-06-09 10:53:29 macan>
  *
  * Define SVFS inodes
  *
@@ -56,8 +56,11 @@ static inline struct svfs_super_block *SVFS_SB(const struct super_block *s)
 
 struct svfs_referal
 {
+#define LLFS_TYPE_FREE 0x00
+#define LLFS_TYPE_EXT4 0x01
+#define LLFS_TYPE_EXT3 0x02
     u32 llfs_type;             /* llfs filesystem type */
-    u32 llfs_inode;            /* llfs vfs inode */
+    struct vfs_inode *llfs_inode;            /* llfs vfs inode */
 
     char llfs_pathname[0];
 };
@@ -66,6 +69,7 @@ struct svfs_inode
 {
     u32 timestamp;
     u32 version;
+    __le32 dtime;
 
     /* layout */
 
@@ -77,5 +81,10 @@ struct svfs_inode
     /* VFS inode */
     struct inode vfs_inode;
 };
+
+static inline struct svfs_inode *SVFS_I(struct inode *inode)
+{
+	return container_of(inode, struct svfs_inode, vfs_inode);
+}
 
 #endif

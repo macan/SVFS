@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-08 22:14:42 macan>
+ * Time-stamp: <2009-06-10 09:18:53 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -41,7 +41,7 @@ MODULE_VERSION(SVFS_CLIENT_VERSION);
 static char svfs_client_name[] = "svfsclient";
 static char svfs_client_string[] = "SVFS Client written by Ma Can";
 
-static struct kmem_cache *svfs_inode_cachep;
+struct kmem_cache *svfs_inode_cachep;
 
 static void init_once(void *foo)
 {

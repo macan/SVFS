@@ -2,7 +2,7 @@
 # Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
 #                           <macan@ncic.ac.cn>
 #
-# Time-stamp: <2009-06-08 22:19:24 macan>
+# Time-stamp: <2009-06-10 09:50:19 macan>
 #
 # This is the makefile for SVFS module.
 #
@@ -20,8 +20,10 @@ EXTRA_CFLAGS += -Wall -O2
 
 ifneq ($(KERNELRELEASE),)
 
-obj-m := svfs_client.o
-svfs_client-objs += $(patsubst %client.c,%client.o,$(wildcard , *.c))
+obj-m := svfs_client.o dc.o
+dc-objs += mdc/super.o
+
+svfs_client-objs += $(dc-objs)
 
 else
 

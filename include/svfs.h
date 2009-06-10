@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-08 22:14:24 macan>
+ * Time-stamp: <2009-06-10 11:08:13 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -35,34 +35,59 @@
 #include <linux/slab.h>
 #include <linux/mutex.h>
 #include <linux/types.h>
+#include <linux/backing-dev.h>
+#include <linux/statfs.h>
+#include <linux/mount.h>
 
 /* svfs inode structures */
 #include "svfs_i.h"
 
+/* svfs super magic */
+#define SVFS_SUPER_MAGIC 0x51455145
+#define SVFS_NAME_LEN 255
+
 /* svfs tracing */
 #define SVFS_INFO    0x80000000
+#define SVFS_WARNING 0x40000000
 #define SVFS_PRECISE 0x00000002
 #define SVFS_DEBUG   0x00000001
 
-#define svfs_tracing(mask, flag, lvl, f, a...) do {                     \
-    if (mask & flag) {                                                  \
-        if (mask & SVFS_PRECISE) {                                      \
-            printk(lvl "SVFS (%s, %d): %s:", __FILE__, __LINE__, __func__); \
-        }                                                               \
-        printk(lvl f, ## a);                                            \
-    }                                                                   \
-} while (0)
+#define svfs_tracing(mask, flag, lvl, f, a...) do {     \
+        if (mask & flag) {                              \
+            if (mask & SVFS_PRECISE) {                  \
+                printk(lvl "SVFS (%s, %d): %s:",        \
+                       __FILE__, __LINE__, __func__);   \
+            }                                           \
+            printk(lvl f, ## a);                        \
+        }                                               \
+    } while (0)
 
 #define svfs_info(module, f, a...)                              \
     svfs_tracing(SVFS_INFO, svfs_##module##_tracing_flags,      \
                  KERN_INFO, f, ## a)
-#define svfs_debug(module, f, a...)                                     \
-    svfs_tracing((SVFS_DEBUG | SVFS_PRECISE), svfs_##module##_tracing_flags, \
+
+#define svfs_debug(module, f, a...)             \
+    svfs_tracing((SVFS_DEBUG | SVFS_PRECISE),   \
+                 svfs_##module##_tracing_flags, \
                  KERN_DEBUG, f, ## a)
 
+#define svfs_warning(module, f, a...)           \
+    svfs_tracing((SVFS_WARNING | SVFS_PRECISE), \
+                 svfs_##module##_tracing_flags, \
+                 KERN_WARNING, f, ##a)
+
 /* APIs for super.c */
-int svfs_get_sb(struct file_system_type *, int, const char *,
-                void *, struct vfsmount *);
-void svfs_kill_super(struct super_block *);
+extern struct kmem_cache *svfs_inode_cachep;
+extern int svfs_get_sb(struct file_system_type *, int, const char *,
+                       void *, struct vfsmount *);
+extern void svfs_kill_super(struct super_block *);
+/* APIs for inode.c */
+extern int svfs_write_inode(struct inode *, int);
+extern void svfs_dirty_inode(struct inode*);
+extern void svfs_delete_inode(struct inode*);
+
+
+/* Include all the tracing flags */
+#include "svfs_tracing.h"
 
 #endif

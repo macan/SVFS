@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-08 22:12:54 macan>
+ * Time-stamp: <2009-06-10 11:09:27 macan>
  *
  * Supporting SVFS superblock operations.
  *
@@ -33,6 +33,7 @@ static int svfs_compare_super(struct super_block *sb, void *data)
     if (memcmp(&old->fsid, &new->fsid, sizeof(old->fsid)) != 0)
         return 0;
     /* TODO: need to handle mount options */
+    mntflags = 0;
     return 1;
 }
 
@@ -80,7 +81,102 @@ static int svfs_set_super(struct super_block *s, void *data)
     return ret;
 }
 
-static int svfs_fill_super(struct super_block *sb, int flags)
+static struct inode *svfs_alloc_inode(struct super_block *sb)
+{
+    struct svfs_inode *si;
+
+    si = kmem_cache_alloc(svfs_inode_cachep, GFP_NOFS);
+    if (!si)
+        return NULL;
+    /* TODO: init the svfs inode here */
+    /* TODO: should journal the new inode? */
+
+    svfs_debug(mdc, "alloc new svfs_inode: %p\n", si);
+    return &si->vfs_inode;
+}
+
+static void svfs_destroy_inode(struct inode *inode)
+{
+    svfs_debug(mdc, "destroy svfs_inode: %p\n", SVFS_I(inode));
+    /* TODO: free the info in svfs_inode? */
+    kmem_cache_free(svfs_inode_cachep, SVFS_I(inode));
+}
+
+static void svfs_put_super(struct super_block *sb)
+{
+    struct svfs_super_block *ssb = SVFS_SB(sb);
+
+    /* TODO: release the super block @ MDS & OSD? */
+    svfs_debug(mdc, "release the svfs_super_blcok\n");
+    svfs_free_sb(ssb);
+}
+
+static int svfs_statfs(struct dentry *dentry, struct kstatfs *buf)
+{
+    struct super_block *sb = dentry->d_sb;
+    struct svfs_super_block *ssb = SVFS_SB(sb);
+
+    /* TODO: query the MDS to get the fs states */
+    /* TODO: fill the buf by the returned states */
+    buf->f_type = SVFS_SUPER_MAGIC;
+    buf->f_bsize = sb->s_blocksize;
+    buf->f_blocks = 0x1000;     /* FIXME */
+    buf->f_bfree = 0x500;
+    buf->f_bavail = 0x400;
+    buf->f_files = 0;
+    buf->f_ffree = 0x1000;
+    buf->f_namelen = SVFS_NAME_LEN;
+    buf->f_fsid.val[0] = ssb->fsid & 0xFFFFFFFFUL;
+    buf->f_fsid.val[1] = (ssb->fsid >> 32) & 0xFFFFFFFFUL;
+
+    svfs_debug(mdc, "svfs statfs: type 0x%lx\n", buf->f_type);
+    return 0;
+}
+
+static int svfs_sync_fs(struct super_block *sb, int wait)
+{
+    sb->s_dirt = 0;
+    /* TODO: commit the dirty contents? */
+    return 0;
+}
+
+static int svfs_remount_fs(struct super_block *sb, int *flags, char *data)
+{
+    struct svfs_super_block *ssb = SVFS_SB(sb);
+    unsigned long old_sb_flags;
+    int err = 0;
+
+    old_sb_flags = sb->s_flags;
+    ssb->flags |= SVFS_MOUNTED;
+    /* TODO: get the old options, compare with the new options */
+
+    return err;
+}
+
+/* 
+ * Invoked when a disk inode is being destroyed to perform 
+ * filesystem-specific operations.
+ */
+static void svfs_clear_inode(struct inode *inode)
+{
+    /* TODO: release the inode @ MDS */
+    return;
+}
+
+static const struct super_operations svfs_sops = {
+    .alloc_inode = svfs_alloc_inode,
+    .destroy_inode = svfs_destroy_inode,
+    .write_inode = svfs_write_inode,
+    .dirty_inode = svfs_dirty_inode,
+    .delete_inode = svfs_delete_inode,
+    .put_super = svfs_put_super,
+    .statfs = svfs_statfs,
+    .sync_fs = svfs_sync_fs,
+    .remount_fs = svfs_remount_fs,
+    .clear_inode = svfs_clear_inode,
+};
+
+static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
 {
     struct svfs_super_block *ssb = SVFS_SB(sb);
     struct inode *inode;
@@ -88,11 +184,11 @@ static int svfs_fill_super(struct super_block *sb, int flags)
 
     /* TODO: should statfs to get the superblock from the stable storage? */
 
-    sb->s_magic = 0x51455145;   /* 5145 <-> SVFS */
+    sb->s_magic = SVFS_SUPER_MAGIC;   /* 5145 <-> SVFS */
     sb->s_blocksize_bits = 12;  /* 4K? */
     sb->s_blocksize = (1ULL << 12);
-    sb->maxbytes = ~0ULL;
-    sb->s_op = &svfs_super_operations;
+    sb->s_maxbytes = ~0ULL;
+    sb->s_op = &svfs_sops;
 
     if (sb->s_flags & MS_RDONLY)
         ssb->flags |= SVFS_RDONLY;
@@ -109,6 +205,8 @@ static int svfs_fill_super(struct super_block *sb, int flags)
     if (inode->i_state & I_NEW) {
         struct svfs_inode *si = SVFS_I(inode);
 
+        si->version = 0;
+        
         inode->i_ino = SVFS_ROOT_INODE;
         inode->i_flags = S_NOATIME | S_NOCMTIME;
         inode->i_mode = S_IFDIR;
@@ -116,8 +214,8 @@ static int svfs_fill_super(struct super_block *sb, int flags)
         inode->i_fop = &svfs_dir_operations;
 
         /* FIXME: */
-        inode->i_atime = inode->mtime = 
-            inode->ctime = CURRENT_TIME;
+        inode->i_atime = inode->i_mtime = 
+            inode->i_ctime = CURRENT_TIME;
         inode->i_size = (1ULL << 12);    /* get from the statfs */
         inode->i_nlink = 2;
         inode->i_uid = 0;
@@ -125,7 +223,7 @@ static int svfs_fill_super(struct super_block *sb, int flags)
         inode->i_blocks = 8;
 
         unlock_new_inode(inode);
-        svfs_debug(client, "root inode state I_NEW, ct=%d\n", 
+        svfs_debug(mdc, "root inode state I_NEW, ct=%d\n", 
                    atomic_read(&inode->i_count));
     }
 
@@ -139,10 +237,10 @@ static int svfs_fill_super(struct super_block *sb, int flags)
     list_del_init(&sb->s_root->d_alias);
     spin_unlock(&dcache_lock);
 
-    mnt->mnt_sb = s;
-    mnt->mnt_root = sb->s_root;
+    vfsmnt->mnt_sb = sb;
+    vfsmnt->mnt_root = sb->s_root;
     
-    svfs_debug(client, "root inode ct=%d\n",
+    svfs_debug(mdc, "root inode ct=%d\n",
                atomic_read(&inode->i_count));
 out:
     return err;
@@ -162,10 +260,6 @@ int svfs_get_sb(struct file_system_type *fs_type,
     };
     struct svfs_super_block *ssb;
 
-    data = kzalloc(sizeof(*data), GFP_KERNEL);
-    if (data == NULL)
-        goto out_free;
-
     ssb = svfs_alloc_sb();
     if (IS_ERR(ssb)) {
         err = PTR_ERR(ssb);
@@ -184,8 +278,8 @@ int svfs_get_sb(struct file_system_type *fs_type,
         goto out_err_nosb;
     }
 
-    if (s->s_fs_info != sb_mntdata.ssb) {
-        svfs_free_sb();
+    if (s->s_fs_info != ssb) {
+        svfs_free_sb(ssb);
         ssb = NULL;
     } else {
         /* It is a new ssb */
@@ -197,18 +291,18 @@ int svfs_get_sb(struct file_system_type *fs_type,
 
     if (!s->s_root) {
         /* initial superblock/root creation */
-        svfs_fill_super(s, mnt);
+        err = svfs_fill_super(s, mnt);
+        if (err)
+            goto out_splat_root;
     }
 
     s->s_flags |= MS_ACTIVE;
     
     err = 0;
 out:
-out_free:
-    kfree(data);
     return err;
 out_err_nosb:
-    svfs_free_sb();
+    svfs_free_sb(ssb);
 out_alloc_sb:
     goto out;
 
@@ -224,7 +318,7 @@ void svfs_kill_super(struct super_block *s)
 {
     struct svfs_super_block *ssb = SVFS_SB(s);
 
-    bdi_unregister(ssb->backing_dev_info);
+    bdi_unregister(&ssb->backing_dev_info);
     kill_anon_super(s);
     svfs_free_sb(ssb);
 }
