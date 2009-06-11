@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-10 11:24:45 macan>
+ * Time-stamp: <2009-06-10 14:56:42 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,4 +21,75 @@
  */
 
 #include "svfs.h"
+
+static int svfs_create(struct inode *dir, struct dentry *dentry, int mode,
+                       struct nameidata *nd)
+{
+    /* TODO: redirect the request to ext4 file system */
+    return -ENOTSUPP;
+}
+
+static struct dentry *svfs_lookup(struct inode *dir, struct dentry *dentry,
+                                  struct nameidata *nd)
+{
+    return ERR_PTR(-ENOTSUPP);
+}
+
+static int svfs_link(struct dentry *old_dentry, struct inode *dir,
+                     struct dentry *dentry)
+{
+    return -ENOTSUPP;
+}
+
+static int svfs_unlink(struct inode *dir, struct dentry *dentry)
+{
+    return -ENOTSUPP;
+}
+
+static int svfs_symlink(struct inode *dir, struct dentry *dentry, 
+                        const char *symname)
+{
+    return -ENOTSUPP;
+}
+
+static int svfs_mkdir(struct inode *dir, struct dentry *dentry,
+                      int mode)
+{
+    return -ENOTSUPP;
+}
+
+static int svfs_rmdir(struct inode *dir, struct dentry *dentry)
+{
+    return -ENOTSUPP;
+}
+
+static int svfs_mknod(struct inode *dir, struct dentry *dentry,
+                      int mode, dev_t rdev)
+{
+    return -ENOTSUPP;
+}
+
+static int svfs_rename(struct inode *old_dir, struct dentry *old_dentry,
+                       struct inode *new_dir, struct dentry *new_dentry)
+{
+    return -ENOTSUPP;
+}
+
+static int svfs_setattr(struct dentry *dentry, struct iattr *attr)
+{
+    return -ENOTSUPP;
+}
+
+const struct inode_operations svfs_dir_inode_operations = {
+    .create = svfs_create,
+    .lookup = svfs_lookup,
+    .link = svfs_link,
+    .unlink = svfs_unlink,
+    .symlink = svfs_symlink,
+    .mkdir = svfs_mkdir,
+    .rmdir = svfs_rmdir,
+    .mknod = svfs_mknod,
+    .rename = svfs_rename,
+    .setattr = svfs_setattr,
+};
 

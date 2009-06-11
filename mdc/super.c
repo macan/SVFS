@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-10 11:09:27 macan>
+ * Time-stamp: <2009-06-11 14:41:13 macan>
  *
  * Supporting SVFS superblock operations.
  *
@@ -45,6 +45,7 @@ static struct svfs_super_block *svfs_alloc_sb(void)
     if (!ssb)
         return ERR_PTR(-ENOMEM);
     /* TODO: init svfs_super_block here */
+    return ssb;
 }
 
 /**
@@ -227,6 +228,7 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
                    atomic_read(&inode->i_count));
     }
 
+    err = -ENOMEM;
     sb->s_root = d_alloc_root(inode);
     if (sb->s_root == NULL) {
         iput(inode);
@@ -238,11 +240,26 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
     spin_unlock(&dcache_lock);
 
     vfsmnt->mnt_sb = sb;
-    vfsmnt->mnt_root = sb->s_root;
+    vfsmnt->mnt_root = dget(sb->s_root);
     
     svfs_debug(mdc, "root inode ct=%d\n",
                atomic_read(&inode->i_count));
+    svfs_info(mdc, "DUMP root dentry:\n"
+              ".d_count %d, " ".d_flags 0x%x, .d_inode %p, \n"
+              ".d_parent %p, .d_hash %p, .d_lru %d, .d_sb %p, \n"
+              ".d_subdirs %d, .d_u %d, .d_op %p,\n"
+              ".d_alias %d, .d_mounted %d\n"
+              , atomic_read(&sb->s_root->d_count),
+              sb->s_root->d_flags, sb->s_root->d_inode,
+              sb->s_root->d_parent, sb->s_root->d_hash.pprev,
+              list_empty(&sb->s_root->d_lru), sb->s_root->d_sb,
+              list_empty(&sb->s_root->d_subdirs), 
+              list_empty(&sb->s_root->d_u.d_child),
+              sb->s_root->d_op, list_empty(&sb->s_root->d_alias),
+              sb->s_root->d_mounted);
+    err = 0;
 out:
+    svfs_debug(mdc, "err %d\n", err);
     return err;
 out_iput:
     iput(inode);
@@ -272,6 +289,7 @@ int svfs_get_sb(struct file_system_type *fs_type,
     if (err)
         goto out_alloc_sb;
 
+    svfs_debug(mdc, "pre sget()\n");
     s = sget(fs_type, svfs_compare_super, svfs_set_super, &sb_mntdata);
     if (IS_ERR(s)) {
         err = PTR_ERR(s);
@@ -281,6 +299,9 @@ int svfs_get_sb(struct file_system_type *fs_type,
     if (s->s_fs_info != ssb) {
         svfs_free_sb(ssb);
         ssb = NULL;
+        /* NOTE: should we set mnt.* here? */
+        mnt->mnt_sb = s;
+        mnt->mnt_root = dget(s->s_root);
     } else {
         /* It is a new ssb */
         err = bdi_register_dev(&ssb->backing_dev_info, ssb->s_dev);
@@ -291,9 +312,11 @@ int svfs_get_sb(struct file_system_type *fs_type,
 
     if (!s->s_root) {
         /* initial superblock/root creation */
+        svfs_debug(mdc, "pre svfs_fill_super()\n");
         err = svfs_fill_super(s, mnt);
         if (err)
             goto out_splat_root;
+        svfs_debug(mdc, "after svfs_fill_super(), err %d\n", err);
     }
 
     s->s_flags |= MS_ACTIVE;
@@ -314,10 +337,23 @@ out_splat_super:
     goto out;
 }
 
+/* 
+ * This function is called with the reference count equal 1,
+ * which means the last ref.
+ */
 void svfs_kill_super(struct super_block *s)
 {
     struct svfs_super_block *ssb = SVFS_SB(s);
 
+    svfs_debug(mdc, ".s_count %d, .s_active %d, "
+               ".d_count %d, .i_count %d\n",
+               s->s_count,
+               atomic_read(&s->s_active),
+               atomic_read(&s->s_root->d_count),
+               atomic_read(&s->s_root->d_inode->i_count));
+
+    /* NOTE: why should we do atomic_dec? */
+    atomic_dec(&s->s_root->d_inode->i_count);
     bdi_unregister(&ssb->backing_dev_info);
     kill_anon_super(s);
     svfs_free_sb(ssb);

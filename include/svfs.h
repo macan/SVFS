@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-10 11:08:13 macan>
+ * Time-stamp: <2009-06-11 08:14:20 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -38,6 +38,9 @@
 #include <linux/backing-dev.h>
 #include <linux/statfs.h>
 #include <linux/mount.h>
+#include <linux/sched.h>
+#include <linux/mm.h>
+#include <linux/errno.h>
 
 /* svfs inode structures */
 #include "svfs_i.h"
@@ -85,7 +88,14 @@ extern void svfs_kill_super(struct super_block *);
 extern int svfs_write_inode(struct inode *, int);
 extern void svfs_dirty_inode(struct inode*);
 extern void svfs_delete_inode(struct inode*);
-
+/* APIs for namei.c */
+extern const struct inode_operations svfs_dir_inode_operations;
+/* APIs for sync.c */
+extern int svfs_sync_file(struct file *, struct dentry *, int);
+/* APIs for dir.c */
+extern const struct file_operations svfs_dir_operations;
+/* APIs for ialloc.c */
+extern void svfs_free_inode(struct inode *);
 
 /* Include all the tracing flags */
 #include "svfs_tracing.h"

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-10 11:24:00 macan>
+ * Time-stamp: <2009-06-10 14:50:11 macan>
  *
  * inode.c for SVFS
  *
@@ -21,6 +21,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
+
+#include "svfs.h"
 
 int svfs_force_commit(struct super_block *sb)
 {
@@ -50,6 +52,18 @@ void svfs_dirty_inode(struct inode *inode)
     svfs_mark_inode_dirty(inode);
 }
 
+void svfs_truncate(struct inode *inode)
+{
+    /* 
+     * TODO: how to handle truncate?
+     *
+     * Step 1: checking
+     * Step 2: truncate the i_disksize, caculate new OSD stripes
+     * Step 3: do it on OSD and MDS
+     */
+    return;
+}
+
 void svfs_delete_inode(struct inode *inode)
 {
     int err;
@@ -57,7 +71,7 @@ void svfs_delete_inode(struct inode *inode)
     /* TODO: truncate the inode pagecache */
     truncate_inode_pages(&inode->i_data, 0);
 
-    if (is_bad_inode(inod))
+    if (is_bad_inode(inode))
         goto no_delete;
     
     inode->i_size = 0;
@@ -73,7 +87,7 @@ void svfs_delete_inode(struct inode *inode)
     SVFS_I(inode)->dtime = get_seconds();
     
     if (svfs_mark_inode_dirty(inode))
-        clear_inod(inode);
+        clear_inode(inode);
     else
         svfs_free_inode(inode);
 
