@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-11 14:41:13 macan>
+ * Time-stamp: <2009-06-11 21:33:32 macan>
  *
  * Supporting SVFS superblock operations.
  *
@@ -45,6 +45,8 @@ static struct svfs_super_block *svfs_alloc_sb(void)
     if (!ssb)
         return ERR_PTR(-ENOMEM);
     /* TODO: init svfs_super_block here */
+    svfs_debug(mdc, "kzalloc ssb %p size %ld\n", ssb,
+               sizeof(struct svfs_super_block));
     return ssb;
 }
 
@@ -65,6 +67,7 @@ static void svfs_free_sb(struct svfs_super_block *ssb)
     if (!ssb)
         return;
     /* TODO: finalize other fields first */
+    svfs_debug(mdc, "kfree ssb %p\n", ssb);
     kfree(ssb);
 }
 
@@ -108,8 +111,7 @@ static void svfs_put_super(struct super_block *sb)
     struct svfs_super_block *ssb = SVFS_SB(sb);
 
     /* TODO: release the super block @ MDS & OSD? */
-    svfs_debug(mdc, "release the svfs_super_blcok\n");
-    svfs_free_sb(ssb);
+    svfs_debug(mdc, "release the svfs_super_blcok %p\n", ssb);
 }
 
 static int svfs_statfs(struct dentry *dentry, struct kstatfs *buf)
@@ -138,6 +140,7 @@ static int svfs_sync_fs(struct super_block *sb, int wait)
 {
     sb->s_dirt = 0;
     /* TODO: commit the dirty contents? */
+    svfs_debug(mdc, "svfs sync fs now, wait %d\n", wait);
     return 0;
 }
 
@@ -150,6 +153,7 @@ static int svfs_remount_fs(struct super_block *sb, int *flags, char *data)
     old_sb_flags = sb->s_flags;
     ssb->flags |= SVFS_MOUNTED;
     /* TODO: get the old options, compare with the new options */
+    svfs_debug(mdc, "svfs remount fs, ssb %p\n", ssb);
 
     return err;
 }
@@ -161,6 +165,7 @@ static int svfs_remount_fs(struct super_block *sb, int *flags, char *data)
 static void svfs_clear_inode(struct inode *inode)
 {
     /* TODO: release the inode @ MDS */
+    svfs_debug(mdc, "svfs clear inode\n");
     return;
 }
 
@@ -239,9 +244,6 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
     list_del_init(&sb->s_root->d_alias);
     spin_unlock(&dcache_lock);
 
-    vfsmnt->mnt_sb = sb;
-    vfsmnt->mnt_root = dget(sb->s_root);
-    
     svfs_debug(mdc, "root inode ct=%d\n",
                atomic_read(&inode->i_count));
     svfs_info(mdc, "DUMP root dentry:\n"
@@ -299,9 +301,6 @@ int svfs_get_sb(struct file_system_type *fs_type,
     if (s->s_fs_info != ssb) {
         svfs_free_sb(ssb);
         ssb = NULL;
-        /* NOTE: should we set mnt.* here? */
-        mnt->mnt_sb = s;
-        mnt->mnt_root = dget(s->s_root);
     } else {
         /* It is a new ssb */
         err = bdi_register_dev(&ssb->backing_dev_info, ssb->s_dev);
@@ -320,6 +319,7 @@ int svfs_get_sb(struct file_system_type *fs_type,
     }
 
     s->s_flags |= MS_ACTIVE;
+    simple_set_mnt(mnt, s);
     
     err = 0;
 out:
@@ -334,7 +334,7 @@ out_splat_super:
     up_write(&s->s_umount);
     deactivate_super(s);
     /* do not release ssb? */
-    goto out;
+    goto out_err_nosb;
 }
 
 /* 

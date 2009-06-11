@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-09 10:53:29 macan>
+ * Time-stamp: <2009-06-11 16:21:47 macan>
  *
  * Define SVFS inodes
  *
@@ -76,7 +76,7 @@ struct svfs_inode
     /* small dir data & operations */
 
     /* llfs related */
-    struct svfs_referal llfs_md; /* metadata referal for llfs */
+    struct svfs_referal *llfs_md; /* metadata referal for llfs */
 
     /* VFS inode */
     struct inode vfs_inode;

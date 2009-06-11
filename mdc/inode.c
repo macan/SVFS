@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-10 14:50:11 macan>
+ * Time-stamp: <2009-06-11 17:08:02 macan>
  *
  * inode.c for SVFS
  *
@@ -38,6 +38,8 @@ int svfs_write_inode(struct inode *inode, int wait)
     if (!wait)
         return 0;
 
+    svfs_debug(mdc, "svfs write inode now, wait %d\n", wait);
+
     return svfs_force_commit(inode->i_sb);
 }
 
@@ -68,7 +70,8 @@ void svfs_delete_inode(struct inode *inode)
 {
     int err;
 
-    /* TODO: truncate the inode pagecache */
+    svfs_debug(mdc, "svfs delete inode, si %p\n", SVFS_I(inode));
+   /* TODO: truncate the inode pagecache */
     truncate_inode_pages(&inode->i_data, 0);
 
     if (is_bad_inode(inode))

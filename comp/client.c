@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-11 08:55:05 macan>
+ * Time-stamp: <2009-06-11 21:46:22 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -62,8 +62,7 @@ static int init_inodecache(void)
 {
     svfs_inode_cachep = kmem_cache_create("svfs_inode_cache",
                                           sizeof(struct svfs_inode),
-                                          0, (SLAB_RECLAIM_ACCOUNT | 
-                                              SLAB_MEM_SPREAD),
+                                          0, (SLAB_RECLAIM_ACCOUNT),
                                           init_once);
     if (svfs_inode_cachep == NULL)
         return -ENOMEM;
@@ -80,7 +79,7 @@ static struct file_system_type svfs_fs_type = {
     .name = "svfs",
     .get_sb = svfs_get_sb,
     .kill_sb = svfs_kill_super,
-    .fs_flags = FS_BINARY_MOUNTDATA | FS_REQUIRES_DEV,
+    .fs_flags = FS_BINARY_MOUNTDATA | FS_RENAME_DOES_D_MOVE,
 };
 
 static int __init init_svfs(void)
