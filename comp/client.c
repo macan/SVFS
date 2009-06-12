@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-11 21:46:22 macan>
+ * Time-stamp: <2009-06-12 20:59:20 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -39,6 +39,16 @@ MODULE_PARM_DESC(svfs_mdc_tracing_flags,
                  "SVFS MDC Tracing Flags: 0xffffffff for all events");
 
 #endif
+#ifdef SVFS_LOCAL_TEST
+char *svfs_backing_store = "/tmp/svfs_backing_store";
+char *svfs_targeting_store = "/mnt/tmp"
+module_param(svfs_backing_store, charp, S_IRUGO);
+MODULE_PARM_DESC(svfs_backing_store,
+                 "SVFS Backing Store: pathname");
+module_param(svfs_targeting_store, charp, S_IRUGO);
+MODULE_PARM_DESC(svfs_targeting_store,
+                 "SVFS Targeting Store: pathname");
+#endif
 
 MODULE_AUTHOR("Ma Can <macan@ncic.ac.cn>");
 MODULE_DESCRIPTION("SVFS Client");
@@ -62,7 +72,8 @@ static int init_inodecache(void)
 {
     svfs_inode_cachep = kmem_cache_create("svfs_inode_cache",
                                           sizeof(struct svfs_inode),
-                                          0, (SLAB_RECLAIM_ACCOUNT),
+                                          0, (SLAB_RECLAIM_ACCOUNT |
+                                              SLAB_MEM_SPREAD),
                                           init_once);
     if (svfs_inode_cachep == NULL)
         return -ENOMEM;
@@ -90,6 +101,8 @@ static int __init init_svfs(void)
            svfs_client_tracing_flags);
     printk(KERN_INFO "svfs_mdc_tracing_flags 0x%x\n", 
            svfs_mdc_tracing_flags);
+    printk(KERN_INFO "svfs_backing_store %s\n", 
+           svfs_backing_store);
 
     svfs_info(client, "%s: %s\n", svfs_client_name, svfs_client_string);
 

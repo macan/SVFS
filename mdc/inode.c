@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-11 17:08:02 macan>
+ * Time-stamp: <2009-06-12 22:12:55 macan>
  *
  * inode.c for SVFS
  *
@@ -40,12 +40,37 @@ int svfs_write_inode(struct inode *inode, int wait)
 
     svfs_debug(mdc, "svfs write inode now, wait %d\n", wait);
 
+#ifdef SVFS_LOCAL_TEST
+    /* FIXME: write the path to bse ? */
+    {
+        svfs_backing_store_commit_bse(inode);
+    }
+#endif
+
     return svfs_force_commit(inode->i_sb);
 }
 
 int svfs_mark_inode_dirty(struct inode *inode)
 {
+    struct svfs_inode *si = SVFS_I(inode);
+
     /* TODO: dirty the disk structure to write */
+#ifdef SVFS_LOCAL_TEST
+    /* FIXME: setting the internal flags? */
+    {
+        struct svfs_super_block *ssb = SVFS_SB(inode->i_sb);
+        struct backing_store_entry *bse = (ssb->bse + inode->i_no);
+
+        if (si->state & SVFS_STATE_NEW) {
+            memset(bse, 0, sizeof(struct backing_store_entry));
+            bse->state |= SVFS_BS_NEW;
+        }
+        svfs_get_inode_flags(si);
+        bse->disk_flags = si->flags;
+        bse->state = SVFS_BS_DIRTY;
+        si->state &= ~SVFS_STATE_NEW;
+    }
+#endif
     return 0;
 }
 
@@ -97,4 +122,54 @@ void svfs_delete_inode(struct inode *inode)
     return;
 no_delete:
     clear_inode(inode);
+}
+
+void svfs_set_inode_flags(struct inode *inode)
+{
+    unsigned int flags = SVFS_I(inode)->flags;
+
+    inode->i_flags &= ~(S_SYNC | S_APPEND | S_IMMUTABLE |
+                        S_NOATIME | S_DIRSYNC);
+    if (flags & SVFS_IF_SYNC)
+        inode->i_flags |= S_SYNC;
+    if (flags & SVFS_IF_APPEND)
+        inode->i_flags |= S_APPEND;
+    if (flags & SVFS_IF_IMMUTABLE)
+        inode->i_flags |= S_IMMUTABLE;
+    if (flags & SVFS_IF_NOATIME)
+        inode->i_flags |= S_NOATIME;
+    if (flags & SVFS_IF_DIRSYNC)
+        inode->i_flags |= S_DIRSYNC;
+}
+
+void svfs_get_inode_flags(struct svfs_inode *si)
+{
+	unsigned int flags = si->vfs_inode.i_flags;
+
+	si->flags &= ~(SVFS_IF_SYNC | SVFS_IF_APPEND | SVFS_IF_IMMUTABLE |
+                     SVFS_IF_NOATIME | SVFS_IF_DIRSYNC);
+	if (flags & S_SYNC)
+		si->flags |= SVFS_IF_SYNC;
+	if (flags & S_APPEND)
+		si->flags |= SVFS_IF_APPEND;
+	if (flags & S_IMMUTABLE)
+		si->flags |= SVFS_IF_IMMUTABLE;
+	if (flags & S_NOATIME)
+		si->flags |= SVFS_IF_NOATIME;
+	if (flags & S_DIRSYNC)
+		si->flags |= SVFS_IF_DIRSYNC;
+}
+
+void svfs_set_aops(struct inode *inode)
+{
+    struct svfs_super_block *ssb = SVFS_SB(inode->i_sb);
+    
+#ifdef SVFS_LOCAL_TEST
+    if (ssb->flags & SVFS_LOCAL_TEST)
+        inode->i_mapping->a_ops = &svfs_bs_aops;
+    else
+        ;
+#endif
+        /* FIXME */
+/*         inode->i_mapping->a_ops = &svfs_aops; */
 }

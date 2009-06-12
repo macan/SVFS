@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-10 14:53:20 macan>
+ * Time-stamp: <2009-06-12 15:19:52 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,5 +26,78 @@ void svfs_free_inode(struct inode *inode)
 {
     /* TODO: should we do sth here? */
     return;
+}
+
+struct inode *svfs_new_inode(struct inode *dir, int mode)
+{
+    struct super_block* sb;
+    struct svfs_super_block *ssb;
+    struct svfs_inode *si;
+
+    if (!dir || !dir->nlink)
+        return ERR_PTR(-EPERM);
+
+    sb = dir->i_sb;
+    inode = new_inode(sb);
+    if (!inode)
+        return ERR_PTR(-ENOMEM);
+
+    si = SVFS_I(inode);
+    ssb = SVFS_SB(sb);
+
+    /* TODO: get the new inode from the MDS? */
+#ifdef SVFS_LOCAL_TEST
+    {
+        int ino = 0;
+        ino = svfs_backing_store_find_ino(ssb);
+        if (ino < SVFS_BACKING_STORE_SIZE / 
+            sizeof(struct backing_store_entry)) {
+            /* get a valid ino now */
+            svfs_backing_store_mark_new_inode(ssb, ino);
+        }
+    }
+#endif
+
+    sb->s_dirt = 1;
+    inode->i_uid = current->fsuid;
+    /* TODO: please see ext4 */
+    if (dir->i_mode & S_ISGID) {
+        inode->i_gid = dir->i_gid;
+        if (S_ISDIR(mode))
+            mode |= S_ISGID;
+    } else
+        indoe->i_gid = current->fsgid;
+    inode->i_mode = mode;
+
+    inode->ino = ino;
+    inode->i_blocks = 0;
+    inode->i_mtime = inode->i_atime = inode->i_ctime = si->cr_time =
+        CURRENT_TIME;
+
+    si->disksize = 0;
+    si->flags = SVFS_I(dir)->flags; /* inherit from the dir */
+    si->dtime = 0;
+
+    svfs_set_inode_flags(inode);
+    insert_inode_hash(inode);
+    spin_lock(&ssb->next_gen_lock);
+    inode->i_generation = ssb->next_generation++;
+    spin_unlock(&ssb->next_gen_lock);
+
+    si->state = SVFS_STATE_NEW;
+    
+    /* TODO: need to do what? */
+    err = svfs_mark_inode_dirty(inode);
+    if (err)
+        goto fail_drop;
+
+    svfs_debug(mdc, "allocating inode %lu\n", inode->i_ino);
+
+    return inode;
+fail_drop:
+    inode->i_nlink = 0;
+    iput(inode);
+    iput(inode);
+    return ERR_PTR(err);
 }
 

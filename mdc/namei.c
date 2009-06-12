@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-10 14:56:42 macan>
+ * Time-stamp: <2009-06-12 22:20:09 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,11 +22,54 @@
 
 #include "svfs.h"
 
+/* Adding one dentry in the dir, filesystem special opeartions */
+static int svfs_add_dentry(struct dentry *dentry, struct inode *inode)
+{
+    struct inode *dir = detnry->d_parent->d_inode;
+    struct super_block *sb = dir->i_sb;
+    int retval;
+    
+#ifdef SVFS_LOCAL_TEST
+    /* setting up the relationship */
+    retval = svfs_backing_store_update_bse(SVFS_SB(sb), dentry, inode);
+    if (!retval) {
+        svfs_info();
+    }
+#endif
+    return retval;
+}
+
+static int svfs_add_nondir(struct dentry *dentry, struct inode *inode)
+{
+    int err = svfs_add_dentry(dentry, inode);
+    if (!err) {
+        svfs_mark_inode_dirty(inode);
+        d_instantiate(dentry, inode);
+        return 0;
+    }
+    drop_nlink(inode);
+    iput(inode);
+    return err;
+    
+}
+
 static int svfs_create(struct inode *dir, struct dentry *dentry, int mode,
                        struct nameidata *nd)
 {
+    struct inode *inode;
+    int err;
+
     /* TODO: redirect the request to ext4 file system */
-    return -ENOTSUPP;
+    inode = svfs_new_inode(dir, mode);
+    err = PTR_ERR(inode);
+    if (!IS_ERR(inode)) {
+        inode->i_op = &svfs_file_inode_operations;
+        inode->i_fop = &svfs_file_operations;
+        svfs_set_aops(inode);
+        err = svfs_add_nondir(dentry, inode)
+    }
+    
+    return err;
 }
 
 static struct dentry *svfs_lookup(struct inode *dir, struct dentry *dentry,

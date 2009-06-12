@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-11 08:14:20 macan>
+ * Time-stamp: <2009-06-12 20:58:01 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -41,6 +41,10 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/errno.h>
+#include <linux/vmalloc.h>
+#include <linux/file.h>
+#include <linux/list.h>
+#include <linux/uaccess.h>
 
 /* svfs inode structures */
 #include "svfs_i.h"
@@ -88,6 +92,8 @@ extern void svfs_kill_super(struct super_block *);
 extern int svfs_write_inode(struct inode *, int);
 extern void svfs_dirty_inode(struct inode*);
 extern void svfs_delete_inode(struct inode*);
+extern void svfs_set_inode_flags(struct inode *);
+extern void svfs_get_inode_flags(struct svfs_inode *);
 /* APIs for namei.c */
 extern const struct inode_operations svfs_dir_inode_operations;
 /* APIs for sync.c */
@@ -99,5 +105,13 @@ extern void svfs_free_inode(struct inode *);
 
 /* Include all the tracing flags */
 #include "svfs_tracing.h"
+
+#ifdef SVFS_LOCAL_TEST
+extern char *svfs_backing_store;
+extern char *svfs_targeting_store;
+#define SVFS_BACKING_STORE_SIZE (128 * 1024)
+extern ssize_t svfs_backing_store_write(struct svfs_super_block *);
+extern ssize_t svfs_backing_store_read(struct svfs_super_block *);
+#endif
 
 #endif

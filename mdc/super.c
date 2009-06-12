@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-11 21:33:32 macan>
+ * Time-stamp: <2009-06-12 21:10:47 macan>
  *
  * Supporting SVFS superblock operations.
  *
@@ -188,6 +188,31 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
     struct inode *inode;
     int err;
 
+#ifdef SVFS_LOCAL_TEST
+    /* FIXME: opening the backing store here? */
+    static int backing_store_counter = 0;
+    ssize_t br;
+    err = -ENOMEM;
+    ssb->backing_store = __getname();
+    if (!ssb->backing_store)
+        goto out;
+    sprintf(ssb->backing_store, "%s_%d", svfs_backing_store, 
+            backing_store_counter++);
+    ssb->bs_filp = filp_open(ssb->backing_store, O_RDWR | O_CREAT, 
+                             S_IRWXU);
+    if (!ssb->bs_filp)
+        goto out1;
+    ssb->bse = vmalloc(SVFS_BACKING_STORE_SIZE);
+    if (!ssb->bse)
+        goto out2;
+    br = svfs_backing_store_read(ssb);
+    if (br < 0)
+        goto out3;
+    svfs_debug(mdc, "Reading %d bytes from backing_store %s\n",
+               (int)br, ssb->backing_store);
+    /* setting the SVFS_LOCAL_TEST flags */
+    ssb->flags |= SVFS_LOCAL_TEST;
+#endif
     /* TODO: should statfs to get the superblock from the stable storage? */
 
     sb->s_magic = SVFS_SUPER_MAGIC;   /* 5145 <-> SVFS */
@@ -200,12 +225,14 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
         ssb->flags |= SVFS_RDONLY;
     ssb->sb = sb;
     ssb->mtime = CURRENT_TIME;
+    get_random_bytes(&ssb->next_generation, sizeof(u32));
+    spin_lock_init(&ssb->next_gen_lock);
 
     /* TODO: call iget to get the root inode? */
     err = -ENOMEM;
     inode = iget_locked(sb, SVFS_ROOT_INODE);
     if (inode == NULL) {
-        goto out;
+        goto out3;
     }
 
     if (inode->i_state & I_NEW) {
@@ -263,9 +290,16 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
 out:
     svfs_debug(mdc, "err %d\n", err);
     return err;
+out3:
+    vfree(ssb->bse);
+out2:
+    fput(ssb->bs_filp);
+out1:
+    __putname(ssb->backing_store);
+    goto out;
 out_iput:
     iput(inode);
-    goto out;
+    goto out1;
 }
 
 int svfs_get_sb(struct file_system_type *fs_type,
@@ -356,5 +390,20 @@ void svfs_kill_super(struct super_block *s)
     atomic_dec(&s->s_root->d_inode->i_count);
     bdi_unregister(&ssb->backing_dev_info);
     kill_anon_super(s);
+#ifdef SVFS_LOCAL_TEST
+    {
+        ssize_t bw;
+        bw = svfs_backing_store_write(ssb);
+        if (bw >= 0)
+            svfs_debug(mdc, "Write %d bytes to backing_store %s\n",
+                       (int)bw, ssb->backing_store);
+        else
+            svfs_info(mdc, "Write to backing store failed, err %d\n",
+                      (int)bw);
+    }
+    __putname(ssb->backing_store);
+    fput(ssb->bs_filp);
+    vfree(ssb->bse);
+#endif
     svfs_free_sb(ssb);
 }
