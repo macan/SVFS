@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-12 20:58:01 macan>
+ * Time-stamp: <2009-06-15 19:27:51 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -26,7 +26,7 @@
 #define __SVFS_H__
 
 /* Define the versions of different modules */
-#define SVFS_CLIENT_VERSION "0.0.1"
+#define SVFS_CLIENT_VERSION "0.0.2"
 
 /* headers file needed by SVFS */
 #include <linux/kernel.h>
@@ -45,6 +45,11 @@
 #include <linux/file.h>
 #include <linux/list.h>
 #include <linux/uaccess.h>
+#include <linux/random.h>
+#include <linux/limits.h>
+#include <linux/module.h>
+#include <linux/moduleparam.h>
+#include <linux/string.h>
 
 /* svfs inode structures */
 #include "svfs_i.h"
@@ -94,6 +99,8 @@ extern void svfs_dirty_inode(struct inode*);
 extern void svfs_delete_inode(struct inode*);
 extern void svfs_set_inode_flags(struct inode *);
 extern void svfs_get_inode_flags(struct svfs_inode *);
+extern int svfs_mark_inode_dirty(struct inode *);
+extern void svfs_set_aops(struct inode *);
 /* APIs for namei.c */
 extern const struct inode_operations svfs_dir_inode_operations;
 /* APIs for sync.c */
@@ -101,7 +108,13 @@ extern int svfs_sync_file(struct file *, struct dentry *, int);
 /* APIs for dir.c */
 extern const struct file_operations svfs_dir_operations;
 /* APIs for ialloc.c */
+extern struct inode *svfs_new_inode(struct inode *, int);
 extern void svfs_free_inode(struct inode *);
+/* APIs for buffer.c */
+extern void svfs_sync_page(struct page *page);
+/* APIs for file.c */
+extern const struct file_operations svfs_file_operations;
+extern const struct inode_operations svfs_file_inode_operations;
 
 /* Include all the tracing flags */
 #include "svfs_tracing.h"
@@ -112,6 +125,11 @@ extern char *svfs_targeting_store;
 #define SVFS_BACKING_STORE_SIZE (128 * 1024)
 extern ssize_t svfs_backing_store_write(struct svfs_super_block *);
 extern ssize_t svfs_backing_store_read(struct svfs_super_block *);
+extern void svfs_backing_store_commit_bse(struct inode *);
+extern int svfs_backing_store_update_bse(struct svfs_super_block *,
+                                         struct dentry *, struct inode *);
+extern unsigned long svfs_backing_store_find_mark_ino(
+    struct svfs_super_block *);
 #endif
 
 #endif

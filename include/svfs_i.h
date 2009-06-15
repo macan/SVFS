@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-12 22:04:57 macan>
+ * Time-stamp: <2009-06-15 20:51:26 macan>
  *
  * Define SVFS inodes
  *
@@ -25,8 +25,6 @@
 #ifndef __SVFS_I_H__
 #define __SVFS_I_H__
 
-#include <linux/types.h>
-
 #define SVFS_ROOT_INODE 0x00
 
 #ifdef SVFS_LOCAL_TEST
@@ -39,6 +37,7 @@ struct backing_store_entry
 #define SVFS_BS_VALID 0x00000004
 #define SVFS_BS_DIR   0x80000000
 #define SVFS_BS_FILE  0x40000000
+#define SVFS_BS_LINK  0x20000000
     u32 state;
     u32 disk_flags;
     char relative_path[NAME_MAX];
@@ -48,10 +47,10 @@ struct backing_store_entry
 
 struct svfs_super_block
 {
-#define SVFS_FREE    0x00000000
-#define SVFS_RDONLY  0x00000001
-#define SVFS_MOUNTED 0x00000002
-#define SVFS_LOCAL_TEST 0x80000000
+#define SVFS_SB_FREE       0x00000000
+#define SVFS_SB_RDONLY     0x00000001
+#define SVFS_SB_MOUNTED    0x00000002
+#define SVFS_SB_LOCAL_TEST 0x80000000
     u32 flags;
     u64 fsid;
     dev_t s_dev;                /* superblock dev numbers */
@@ -62,8 +61,8 @@ struct svfs_super_block
 #ifdef SVFS_LOCAL_TEST
     char *backing_store;
     struct file *bs_filp;
-    int bs_size;
     struct backing_store_entry *bse;
+    int bs_size;
 #endif
 
     struct super_block *sb;
@@ -88,7 +87,7 @@ struct svfs_referal
     u32 llfs_type;             /* llfs filesystem type */
     struct vfs_inode *llfs_inode;            /* llfs vfs inode */
 
-    char llfs_pathname[0];
+    char llfs_pathname[NAME_MAX];
 };
 
 struct svfs_inode 
@@ -107,7 +106,7 @@ struct svfs_inode
 #define SVFS_STATE_NEW    0x00000001
 #define SVFS_STATE_XATTR  0x00000002 /* has xattr in-inode */
     u32 state;
-    __u32 dtime;                /* deletion time */
+    u32 dtime;                /* deletion time */
     loff_t disksize;            /* modified only by get_block and truncate */
     struct timespec crtime;
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-12 22:12:55 macan>
+ * Time-stamp: <2009-06-15 21:44:38 macan>
  *
  * inode.c for SVFS
  *
@@ -59,7 +59,7 @@ int svfs_mark_inode_dirty(struct inode *inode)
     /* FIXME: setting the internal flags? */
     {
         struct svfs_super_block *ssb = SVFS_SB(inode->i_sb);
-        struct backing_store_entry *bse = (ssb->bse + inode->i_no);
+        struct backing_store_entry *bse = (ssb->bse + inode->i_ino);
 
         if (si->state & SVFS_STATE_NEW) {
             memset(bse, 0, sizeof(struct backing_store_entry));
@@ -160,16 +160,181 @@ void svfs_get_inode_flags(struct svfs_inode *si)
 		si->flags |= SVFS_IF_DIRSYNC;
 }
 
+static int svfs_readpage(struct file *file, struct page *page)
+{
+    return -ENOSYS;
+}
+
+static int svfs_readpages(struct file *file, struct address_space *mapping,
+                          struct list_head *pages, unsigned nr_pages)
+{
+    return -ENOSYS;
+}
+
+static int svfs_writepage(struct page *page,
+                          struct writeback_control *wbc)
+{
+    return -ENOSYS;
+}
+
+static int svfs_writepages(struct address_space *mapping,
+                           struct writeback_control *wbc)
+{
+    return -ENOSYS;
+}
+
+static int svfs_write_begin(struct file *file, struct address_space *mapping,
+                            loff_t pos, unsigned len, unsigned flags,
+                            struct page **pagep, void **fsdata)
+{
+    return -ENOSYS;
+}
+
+static int svfs_write_end(struct file *file, struct address_space *mapping,
+                          loff_t pos, unsigned len, unsigned copied,
+                          struct page *page, void *fsdata)
+{
+    return -ENOSYS;
+}
+
+static void svfs_invalidatepage(struct page *page, unsigned long offset)
+{
+    return;
+}
+
+static int svfs_releasepage(struct page *page, gfp_t wait)
+{
+    return -ENOSYS;
+}
+
+#ifdef SVFS_LOCAL_TEST
+static int svfs_bs_readpage(struct file *file, struct page *page)
+{
+    return -ENOSYS;
+}
+
+static int svfs_bs_readpages(struct file *file, struct address_space *mapping,
+                             struct list_head *pages, unsigned nr_pages)
+{
+    return -ENOSYS;
+}
+
+static int svfs_bs_writepage(struct page *page,
+                             struct writeback_control *wbc)
+{
+    return -ENOSYS;
+}
+
+static int svfs_bs_writepages(struct address_space *mapping,
+                              struct writeback_control *wbc)
+{
+    return -ENOSYS;
+}
+
+static int svfs_bs_write_begin(struct file *file, struct address_space *mapping,
+                               loff_t pos, unsigned len, unsigned flags,
+                               struct page **pagep, void **fsdata)
+{
+    return -ENOSYS;
+}
+
+static int svfs_bs_write_end(struct file *file, struct address_space *mapping,
+                             loff_t pos, unsigned len, unsigned copied,
+                             struct page *page, void *fsdata)
+{
+    return -ENOSYS;
+}
+
+static void svfs_bs_invalidatepage(struct page *page, unsigned long offset)
+{
+    return;
+}
+
+static int svfs_bs_releasepage(struct page *page, gfp_t wait)
+{
+    return -ENOSYS;
+}
+
+static const struct address_space_operations svfs_bs_aops = {
+    .readpage = svfs_bs_readpage,
+    .readpages = svfs_bs_readpages,
+    .set_page_dirty = __set_page_dirty_nobuffers, /* from NFS */
+    .writepage = svfs_bs_writepage,
+    .writepages = svfs_bs_writepages,
+    .write_begin = svfs_bs_write_begin,
+    .write_end = svfs_bs_write_end,
+    .invalidatepage = svfs_bs_invalidatepage,
+    .releasepage = svfs_bs_releasepage,
+    /* need .launder_page? */
+};
+#endif
+
+static const struct address_space_operations svfs_aops = {
+    .readpage = svfs_readpage,
+    .readpages = svfs_readpages,
+    .set_page_dirty = __set_page_dirty_nobuffers, /* from NFS */
+    .writepage = svfs_writepage,
+    .writepages = svfs_writepages,
+    .sync_page = svfs_sync_page,
+    .write_begin = svfs_write_begin,
+    .write_end = svfs_write_end,
+    .invalidatepage = svfs_invalidatepage,
+    .releasepage = svfs_releasepage,
+};
+
 void svfs_set_aops(struct inode *inode)
 {
     struct svfs_super_block *ssb = SVFS_SB(inode->i_sb);
     
 #ifdef SVFS_LOCAL_TEST
-    if (ssb->flags & SVFS_LOCAL_TEST)
+    if (ssb->flags & SVFS_SB_LOCAL_TEST)
         inode->i_mapping->a_ops = &svfs_bs_aops;
     else
-        ;
 #endif
-        /* FIXME */
-/*         inode->i_mapping->a_ops = &svfs_aops; */
+        inode->i_mapping->a_ops = &svfs_aops;
+}
+
+struct inode *svfs_iget(struct super_block *sb, unsigned long ino)
+{
+    struct inode *inode;
+    struct svfs_inode *si;
+
+    inode = iget_locked(sb, ino);
+    if (!inode)
+        return ERR_PTR(-ENOMEM);
+    if (!(inode->i_state & I_NEW))
+        retuen inode;
+    si = SVFS_I(inode);
+    /* TODO: find the ino entry and fill it in the inode! */
+
+    si->version = 0;
+    inode->i_ino = ino;
+#ifdef SVFS_LOCAL_TEST
+    {
+        struct svfs_super_block *ssb = SVFS_SB(sb);
+        struct backing_store_entry *bse = ssb->bse + ino;
+
+        inode->i_nlink = bse->nlink;
+        inode->i_flags = bse->disk_flags;
+        if (bse->state & SVFS_BS_DIR) {
+            inode->i_mode = S_IFDIR;
+            inode->i_op = &svfs_dir_inode_operations;
+            inode->i_fop = &svfs_dir_operations;
+        } else if (bse->state & SVFS_BS_FILE) {
+            inode->i_mode = S_IFREG;
+            inode->i_op = &svfs_file_inode_operations;
+            inode->i_fop = &svfs_file_operations;
+            svfs_set_aops(inode);
+        } else if (bse->state & SVFS_BS_LINK){
+            inode->i_mode = S_IFLINK;
+            /* FIXME: symlink operations */
+        } else {
+            /* FIXME: special operations */
+        }
+    }
+#endif
+    inode->
+    svfs_set_inode_flags(inode);
+    unlock_new_inode(inode);
+    return inode;
 }

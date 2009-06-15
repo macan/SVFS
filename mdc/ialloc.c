@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-12 15:19:52 macan>
+ * Time-stamp: <2009-06-15 19:26:23 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,8 +33,11 @@ struct inode *svfs_new_inode(struct inode *dir, int mode)
     struct super_block* sb;
     struct svfs_super_block *ssb;
     struct svfs_inode *si;
+    struct inode *inode;
+    unsigned long ino = 0;
+    int err;
 
-    if (!dir || !dir->nlink)
+    if (!dir || !dir->i_nlink)
         return ERR_PTR(-EPERM);
 
     sb = dir->i_sb;
@@ -48,30 +51,31 @@ struct inode *svfs_new_inode(struct inode *dir, int mode)
     /* TODO: get the new inode from the MDS? */
 #ifdef SVFS_LOCAL_TEST
     {
-        int ino = 0;
-        ino = svfs_backing_store_find_ino(ssb);
-        if (ino < SVFS_BACKING_STORE_SIZE / 
+        ino = svfs_backing_store_find_mark_ino(ssb);
+        if (ino >= SVFS_BACKING_STORE_SIZE / 
             sizeof(struct backing_store_entry)) {
-            /* get a valid ino now */
-            svfs_backing_store_mark_new_inode(ssb, ino);
+            /* get an invalid ino */
+            svfs_warning(mdc, "Invalid ino %ld\n", ino);
+            err = -ENOSPC;
+            goto fail_drop;
         }
     }
 #endif
 
     sb->s_dirt = 1;
-    inode->i_uid = current->fsuid;
+    inode->i_uid = current_fsuid();
     /* TODO: please see ext4 */
     if (dir->i_mode & S_ISGID) {
         inode->i_gid = dir->i_gid;
         if (S_ISDIR(mode))
             mode |= S_ISGID;
     } else
-        indoe->i_gid = current->fsgid;
+        inode->i_gid = current_fsgid();
     inode->i_mode = mode;
 
-    inode->ino = ino;
+    inode->i_ino = ino;
     inode->i_blocks = 0;
-    inode->i_mtime = inode->i_atime = inode->i_ctime = si->cr_time =
+    inode->i_mtime = inode->i_atime = inode->i_ctime = si->crtime =
         CURRENT_TIME;
 
     si->disksize = 0;
@@ -96,7 +100,6 @@ struct inode *svfs_new_inode(struct inode *dir, int mode)
     return inode;
 fail_drop:
     inode->i_nlink = 0;
-    iput(inode);
     iput(inode);
     return ERR_PTR(err);
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-12 21:10:47 macan>
+ * Time-stamp: <2009-06-15 17:32:17 macan>
  *
  * Supporting SVFS superblock operations.
  *
@@ -57,7 +57,7 @@ static int svfs_init_sb(struct svfs_super_block *ssb, int flags,
                         const char *dev_name, void *raw_data)
 {
     /* FIXME: */
-    ssb->flags = SVFS_FREE;
+    ssb->flags = SVFS_SB_FREE;
     ssb->fsid = 0;
     return 0;
 }
@@ -151,7 +151,7 @@ static int svfs_remount_fs(struct super_block *sb, int *flags, char *data)
     int err = 0;
 
     old_sb_flags = sb->s_flags;
-    ssb->flags |= SVFS_MOUNTED;
+    ssb->flags |= SVFS_SB_MOUNTED;
     /* TODO: get the old options, compare with the new options */
     svfs_debug(mdc, "svfs remount fs, ssb %p\n", ssb);
 
@@ -208,10 +208,12 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
     br = svfs_backing_store_read(ssb);
     if (br < 0)
         goto out3;
-    svfs_debug(mdc, "Reading %d bytes from backing_store %s\n",
-               (int)br, ssb->backing_store);
-    /* setting the SVFS_LOCAL_TEST flags */
-    ssb->flags |= SVFS_LOCAL_TEST;
+    /* setting the SVFS_SB_LOCAL_TEST flags */
+    ssb->flags |= SVFS_SB_LOCAL_TEST;
+    ssb->bs_size = SVFS_BACKING_STORE_SIZE / 
+        sizeof(struct backing_store_entry);
+    svfs_debug(mdc, "Reading %d bytes %d entries from backing_store %s\n",
+               (int)br, ssb->bs_size, ssb->backing_store);
 #endif
     /* TODO: should statfs to get the superblock from the stable storage? */
 
@@ -222,7 +224,7 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
     sb->s_op = &svfs_sops;
 
     if (sb->s_flags & MS_RDONLY)
-        ssb->flags |= SVFS_RDONLY;
+        ssb->flags |= SVFS_SB_RDONLY;
     ssb->sb = sb;
     ssb->mtime = CURRENT_TIME;
     get_random_bytes(&ssb->next_generation, sizeof(u32));
@@ -291,11 +293,17 @@ out:
     svfs_debug(mdc, "err %d\n", err);
     return err;
 out3:
+#ifdef SVFS_LOCAL_TEST
     vfree(ssb->bse);
-out2:
+#endif
+out2:__attribute__((unused))
+#ifdef SVFS_LOCAL_TEST
     fput(ssb->bs_filp);
+#endif
 out1:
+#ifdef SVFS_LOCAL_TEST
     __putname(ssb->backing_store);
+#endif
     goto out;
 out_iput:
     iput(inode);
@@ -340,7 +348,7 @@ int svfs_get_sb(struct file_system_type *fs_type,
         err = bdi_register_dev(&ssb->backing_dev_info, ssb->s_dev);
         if (err)
             goto out_splat_super;
-        ssb->flags |= SVFS_MOUNTED;
+        ssb->flags |= SVFS_SB_MOUNTED;
     }
 
     if (!s->s_root) {

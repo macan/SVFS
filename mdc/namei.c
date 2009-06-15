@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-12 22:20:09 macan>
+ * Time-stamp: <2009-06-15 20:29:34 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,16 +25,13 @@
 /* Adding one dentry in the dir, filesystem special opeartions */
 static int svfs_add_dentry(struct dentry *dentry, struct inode *inode)
 {
-    struct inode *dir = detnry->d_parent->d_inode;
+    struct inode *dir = dentry->d_parent->d_inode;
     struct super_block *sb = dir->i_sb;
     int retval;
     
 #ifdef SVFS_LOCAL_TEST
     /* setting up the relationship */
     retval = svfs_backing_store_update_bse(SVFS_SB(sb), dentry, inode);
-    if (!retval) {
-        svfs_info();
-    }
 #endif
     return retval;
 }
@@ -66,61 +63,92 @@ static int svfs_create(struct inode *dir, struct dentry *dentry, int mode,
         inode->i_op = &svfs_file_inode_operations;
         inode->i_fop = &svfs_file_operations;
         svfs_set_aops(inode);
-        err = svfs_add_nondir(dentry, inode)
+        err = svfs_add_nondir(dentry, inode);
     }
     
     return err;
 }
 
+unsigned long svfs_find_entry(struct dentry *dentry)
+{
+    struct super_block *sb;
+    struct inode *dir = dentry->d_parent->d_inode;
+    unsigned long ino = -1UL;
+    
+#ifdef SVFS_LOCAL_TEST
+    ino = svfs_backing_store_lookup(dir->i_ino, dentry->d_name.name);
+    if (ino == -1UL) {
+        svfs_warning(mdc, "svfs_find_dentry can not find the entry\n");
+        goto out;
+    }
+#endif
+out:
+    return ino;
+}
+
 static struct dentry *svfs_lookup(struct inode *dir, struct dentry *dentry,
                                   struct nameidata *nd)
 {
-    return ERR_PTR(-ENOTSUPP);
+    struct inode *inode;
+    unsigned long ino;
+
+    if (dentry->d_name.len > SVFS_NAME_LEN)
+        return ERR_PTR(-ENAMETOOLONG);
+    
+    ino = svfs_find_entry(dentry);
+    if (ino == -1UL)
+        return ERR_PTR(-ENOSPC);
+    inode = NULL;
+    inode = svfs_iget(dir->i_sb, ino);
+    if (IS_ERR(inode))
+        return ERR_CAST(inode);
+
+    return d_splice_alias(inode, dentry);
 }
 
 static int svfs_link(struct dentry *old_dentry, struct inode *dir,
                      struct dentry *dentry)
 {
-    return -ENOTSUPP;
+    return -ENOSYS;
 }
 
 static int svfs_unlink(struct inode *dir, struct dentry *dentry)
 {
-    return -ENOTSUPP;
+    return -ENOSYS;
 }
 
 static int svfs_symlink(struct inode *dir, struct dentry *dentry, 
                         const char *symname)
 {
-    return -ENOTSUPP;
+    return -ENOSYS;
 }
 
 static int svfs_mkdir(struct inode *dir, struct dentry *dentry,
                       int mode)
 {
-    return -ENOTSUPP;
+    return -ENOSYS;
 }
 
 static int svfs_rmdir(struct inode *dir, struct dentry *dentry)
 {
-    return -ENOTSUPP;
+    return -ENOSYS;
 }
 
 static int svfs_mknod(struct inode *dir, struct dentry *dentry,
                       int mode, dev_t rdev)
 {
-    return -ENOTSUPP;
+    return -ENOSYS;
 }
 
 static int svfs_rename(struct inode *old_dir, struct dentry *old_dentry,
                        struct inode *new_dir, struct dentry *new_dentry)
 {
-    return -ENOTSUPP;
+    return -ENOSYS;
 }
 
 static int svfs_setattr(struct dentry *dentry, struct iattr *attr)
 {
-    return -ENOTSUPP;
+    return -ENOSYS;
 }
 
 const struct inode_operations svfs_dir_inode_operations = {
