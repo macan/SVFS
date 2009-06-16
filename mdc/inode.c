@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-15 21:44:38 macan>
+ * Time-stamp: <2009-06-16 17:09:16 macan>
  *
  * inode.c for SVFS
  *
@@ -65,9 +65,7 @@ int svfs_mark_inode_dirty(struct inode *inode)
             memset(bse, 0, sizeof(struct backing_store_entry));
             bse->state |= SVFS_BS_NEW;
         }
-        svfs_get_inode_flags(si);
-        bse->disk_flags = si->flags;
-        bse->state = SVFS_BS_DIRTY;
+        bse->state |= SVFS_BS_DIRTY;
         si->state &= ~SVFS_STATE_NEW;
     }
 #endif
@@ -299,11 +297,13 @@ struct inode *svfs_iget(struct super_block *sb, unsigned long ino)
     struct inode *inode;
     struct svfs_inode *si;
 
+    svfs_debug(mdc, "iget inode %ld\n", ino);
+
     inode = iget_locked(sb, ino);
     if (!inode)
         return ERR_PTR(-ENOMEM);
     if (!(inode->i_state & I_NEW))
-        retuen inode;
+        return inode;
     si = SVFS_I(inode);
     /* TODO: find the ino entry and fill it in the inode! */
 
@@ -315,25 +315,39 @@ struct inode *svfs_iget(struct super_block *sb, unsigned long ino)
         struct backing_store_entry *bse = ssb->bse + ino;
 
         inode->i_nlink = bse->nlink;
-        inode->i_flags = bse->disk_flags;
-        if (bse->state & SVFS_BS_DIR) {
-            inode->i_mode = S_IFDIR;
+        inode->i_size = bse->disksize;
+        inode->i_mode = bse->mode;
+        inode->i_uid = bse->uid;
+        inode->i_gid = bse->gid;
+        inode->i_atime = bse->atime;
+        inode->i_ctime = bse->ctime;
+        inode->i_mtime = bse->mtime;
+        SVFS_I(inode)->flags = bse->disk_flags;
+        /* get the ref path */
+        SVFS_I(inode)->llfs_md.llfs_type = bse->llfs_type;
+        strcmp(SVFS(inode)->llfs_md.llfs_pathname, bse->ref_path);
+
+        if (S_ISDIR(inode->i_mode)) {
+            ASSERT(bse->state & SVFS_BS_DIR);
             inode->i_op = &svfs_dir_inode_operations;
             inode->i_fop = &svfs_dir_operations;
-        } else if (bse->state & SVFS_BS_FILE) {
-            inode->i_mode = S_IFREG;
+        } else if (S_ISREG(inode->i_mode)) {
+            ASSERT(bse->state & SVFS_BS_FILE);
             inode->i_op = &svfs_file_inode_operations;
             inode->i_fop = &svfs_file_operations;
             svfs_set_aops(inode);
-        } else if (bse->state & SVFS_BS_LINK){
-            inode->i_mode = S_IFLINK;
+        } else if (S_ISLNK(inode->i_mode)){
+            ASSERT(bse->state & SVFS_BS_LINK);
             /* FIXME: symlink operations */
         } else {
             /* FIXME: special operations */
         }
+        svfs_debug(mdc, "nlink %d, size %lu, mode 0x%x\n",
+                   inode->i_nlink,
+                   (unsigned long)inode->i_size,
+                   inode->i_mode);
     }
 #endif
-    inode->
     svfs_set_inode_flags(inode);
     unlock_new_inode(inode);
     return inode;

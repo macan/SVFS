@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-15 19:27:51 macan>
+ * Time-stamp: <2009-06-16 11:02:36 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -101,6 +101,7 @@ extern void svfs_set_inode_flags(struct inode *);
 extern void svfs_get_inode_flags(struct svfs_inode *);
 extern int svfs_mark_inode_dirty(struct inode *);
 extern void svfs_set_aops(struct inode *);
+extern struct inode *svfs_iget(struct super_block *, unsigned long);
 /* APIs for namei.c */
 extern const struct inode_operations svfs_dir_inode_operations;
 /* APIs for sync.c */
@@ -130,6 +131,10 @@ extern int svfs_backing_store_update_bse(struct svfs_super_block *,
                                          struct dentry *, struct inode *);
 extern unsigned long svfs_backing_store_find_mark_ino(
     struct svfs_super_block *);
+extern unsigned long svfs_backing_store_lookup(struct svfs_super_block *,
+                                               unsigned long, 
+                                               const char *);
+extern void svfs_backing_store_set_root(struct svfs_super_block *);
 #endif
 
 #endif

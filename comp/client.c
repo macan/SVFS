@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-15 19:36:20 macan>
+ * Time-stamp: <2009-06-16 16:38:50 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -41,7 +41,7 @@ MODULE_PARM_DESC(svfs_mdc_tracing_flags,
 
 #ifdef SVFS_LOCAL_TEST
 char *svfs_backing_store = "/tmp/svfs_backing_store";
-char *svfs_targeting_store = "/mnt/tmp";
+char *svfs_targeting_store = "/mnt/svfs";
 module_param(svfs_backing_store, charp, S_IRUGO);
 MODULE_PARM_DESC(svfs_backing_store,
                  "SVFS Backing Store: pathname");

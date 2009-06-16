@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-15 20:51:26 macan>
+ * Time-stamp: <2009-06-16 20:44:30 macan>
  *
  * Define SVFS inodes
  *
@@ -40,6 +40,13 @@ struct backing_store_entry
 #define SVFS_BS_LINK  0x20000000
     u32 state;
     u32 disk_flags;
+    loff_t disksize;
+    unsigned int nlink;
+    umode_t mode;
+    uid_t uid;
+    gid_t gid;
+    struct timespec atime, ctime, mtime;
+    u32 llfs_type;
     char relative_path[NAME_MAX];
     char ref_path[NAME_MAX];
 };
@@ -105,6 +112,8 @@ struct svfs_inode
     u32 flags;
 #define SVFS_STATE_NEW    0x00000001
 #define SVFS_STATE_XATTR  0x00000002 /* has xattr in-inode */
+#define SVFS_STATE_DISC   0x80000000 /* disconnect inode, no llfs inode */
+#define SVFS_STATE_CONN   0x40000000 /* connected inode, has llfs inode */
     u32 state;
     u32 dtime;                /* deletion time */
     loff_t disksize;            /* modified only by get_block and truncate */
@@ -115,7 +124,7 @@ struct svfs_inode
     /* small dir data & operations */
 
     /* llfs related */
-    struct svfs_referal *llfs_md; /* metadata referal for llfs */
+    struct svfs_referal llfs_md; /* metadata referal for llfs */
 
     /* VFS inode */
     struct inode vfs_inode;
@@ -125,5 +134,19 @@ static inline struct svfs_inode *SVFS_I(struct inode *inode)
 {
 	return container_of(inode, struct svfs_inode, vfs_inode);
 }
+
+struct svfs_datastore
+{
+    /* Using TYPE defines in svfs_i.h: LLFS_TYPE_EXT4/... */
+    int type;
+    char *pathname[NAME_MAX];
+    struct list_head list;
+    struct dentry *root_dentry;
+    struct inode_operations *file_iops, *dir_iops, *symlink_iops;
+    struct file_operations *file_fops, *dir_fops;
+    struct address_space_operations *file_aops;
+    struct dentry_operations *dops;
+    struct super_operations *sops;
+};
 
 #endif

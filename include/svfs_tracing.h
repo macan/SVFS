@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-10 10:35:22 macan>
+ * Time-stamp: <2009-06-16 08:54:07 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,5 +24,16 @@
 #define __SVFS_TRACING_H__
 
 #include "../mdc/mdc.h"
+
+#ifdef SVFS_ASSERT
+#define ASSERT(expr)                            \
+    if(!(expr)) {                               \
+        printk( "\n" __FILE__ ":%d: Assertion " \
+                #expr " failed!\n",__LINE__);   \
+        panic(#expr);                           \
+    }
+#else
+#define ASSERT(expr)
+#endif
 
 #endif

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-15 17:32:17 macan>
+ * Time-stamp: <2009-06-16 19:08:08 macan>
  *
  * Supporting SVFS superblock operations.
  *
@@ -165,7 +165,9 @@ static int svfs_remount_fs(struct super_block *sb, int *flags, char *data)
 static void svfs_clear_inode(struct inode *inode)
 {
     /* TODO: release the inode @ MDS */
-    svfs_debug(mdc, "svfs clear inode\n");
+    svfs_debug(mdc, "svfs clear inode %ld\n", inode->i_ino);
+
+    svfs_write_inode(inode, 1);
     return;
 }
 
@@ -205,6 +207,7 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
     ssb->bse = vmalloc(SVFS_BACKING_STORE_SIZE);
     if (!ssb->bse)
         goto out2;
+    memset(ssb->bse, 0, SVFS_BACKING_STORE_SIZE);
     br = svfs_backing_store_read(ssb);
     if (br < 0)
         goto out3;
@@ -215,6 +218,7 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
     svfs_debug(mdc, "Reading %d bytes %d entries from backing_store %s\n",
                (int)br, ssb->bs_size, ssb->backing_store);
 #endif
+    svfs_data_store_init();
     /* TODO: should statfs to get the superblock from the stable storage? */
 
     sb->s_magic = SVFS_SUPER_MAGIC;   /* 5145 <-> SVFS */
@@ -258,6 +262,9 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
         inode->i_blocks = 8;
 
         unlock_new_inode(inode);
+#ifdef SVFS_LOCAL_TEST
+        svfs_backing_store_set_root(ssb);
+#endif        
         svfs_debug(mdc, "root inode state I_NEW, ct=%d\n", 
                    atomic_read(&inode->i_count));
     }
