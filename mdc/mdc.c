@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-11 08:54:59 macan>
+ * Time-stamp: <2009-06-17 09:34:53 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,3 +25,5 @@
 /* providing mdc_tracing_flags */
 unsigned int svfs_mdc_tracing_flags = 0x80000000;
 
+/* providing dstore_tracing_flags */
+unsigned int svfs_dstore_tracing_flags = 0x80000000;

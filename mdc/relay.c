@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-16 19:04:57 macan>
+ * Time-stamp: <2009-06-17 10:37:52 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,16 +22,12 @@
 
 #include "svfs.h"
 
-#define svfs_relay(name, inode) ({                                   \
-            void *retval;                                            \
-            retval = svfs_relay_##name(SVFS_I(inode)->               \
-                                       llfs_md.llfs_type, inode);    \
-            retval;                                                  \
-        })
-
 /**
  * lookup:
  *
  * find the llfs dentry, return NULL if succeed
  */
 struct dentry *svfs_relay_lookup(u32 type, struct inode *inode)
+{
+    return NULL;
+}

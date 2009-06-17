@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-16 17:09:16 macan>
+ * Time-stamp: <2009-06-17 10:13:33 macan>
  *
  * inode.c for SVFS
  *
@@ -325,7 +325,7 @@ struct inode *svfs_iget(struct super_block *sb, unsigned long ino)
         SVFS_I(inode)->flags = bse->disk_flags;
         /* get the ref path */
         SVFS_I(inode)->llfs_md.llfs_type = bse->llfs_type;
-        strcmp(SVFS(inode)->llfs_md.llfs_pathname, bse->ref_path);
+        strcmp(SVFS_I(inode)->llfs_md.llfs_pathname, bse->ref_path);
 
         if (S_ISDIR(inode->i_mode)) {
             ASSERT(bse->state & SVFS_BS_DIR);

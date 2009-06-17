@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-16 11:02:36 macan>
+ * Time-stamp: <2009-06-17 10:38:46 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -50,6 +50,7 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/string.h>
+#include <linux/namei.h>
 
 /* svfs inode structures */
 #include "svfs_i.h"
@@ -61,6 +62,7 @@
 /* svfs tracing */
 #define SVFS_INFO    0x80000000
 #define SVFS_WARNING 0x40000000
+#define SVFS_ERR     0x20000000
 #define SVFS_PRECISE 0x00000002
 #define SVFS_DEBUG   0x00000001
 
@@ -87,6 +89,11 @@
     svfs_tracing((SVFS_WARNING | SVFS_PRECISE), \
                  svfs_##module##_tracing_flags, \
                  KERN_WARNING, f, ##a)
+
+#define svfs_err(module, f, a...)               \
+    svfs_tracing((SVFS_ERR | SVFS_PRECISE),     \
+                 svfs_##module##_tracing_flags, \
+                 KERN_ERR, f, ##a)
 
 /* APIs for super.c */
 extern struct kmem_cache *svfs_inode_cachep;
@@ -116,6 +123,11 @@ extern void svfs_sync_page(struct page *page);
 /* APIs for file.c */
 extern const struct file_operations svfs_file_operations;
 extern const struct inode_operations svfs_file_inode_operations;
+/* APIs for datastore.c */
+extern void svfs_datastore_init(void);
+extern struct svfs_datastore *svfs_datastore_add_new(int, char *);
+extern void svfs_datastore_free(struct svfs_datastore *);
+extern void svfs_datastore_exit(void);
 
 /* Include all the tracing flags */
 #include "svfs_tracing.h"
@@ -136,5 +148,17 @@ extern unsigned long svfs_backing_store_lookup(struct svfs_super_block *,
                                                const char *);
 extern void svfs_backing_store_set_root(struct svfs_super_block *);
 #endif
+
+/* relay operations */
+#define svfs_relay(name, inode) ({                                   \
+            void *retval;                                            \
+            retval = svfs_relay_##name(SVFS_I(inode)->               \
+                                       llfs_md.llfs_type, inode);    \
+            retval;                                                  \
+        })
+#define svfs_relay_define(name, ret, args ...)  \
+    ret svfs_relay_##name(args)
+
+svfs_relay_define(lookup, struct dentry *, u32, struct inode *);
 
 #endif

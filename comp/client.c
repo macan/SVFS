@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-16 16:38:50 macan>
+ * Time-stamp: <2009-06-17 10:07:21 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -37,6 +37,9 @@ MODULE_PARM_DESC(svfs_client_tracing_flags,
 module_param(svfs_mdc_tracing_flags, uint, S_IRUGO);
 MODULE_PARM_DESC(svfs_mdc_tracing_flags,
                  "SVFS MDC Tracing Flags: 0xffffffff for all events");
+module_param(svfs_dstore_tracing_flags, uint, S_IRUGO);
+MODULE_PARM_DESC(svfs_dstore_tracing_flags,
+                 "SVFS DSTORE Tracing Flags: 0xffffffff for all events");
 #endif
 
 #ifdef SVFS_LOCAL_TEST
@@ -111,6 +114,9 @@ static int __init init_svfs(void)
            svfs_backing_store);
 #endif
 
+    svfs_datastore_init();
+    svfs_datastore_add_new(LLFS_TYPE_EXT4, "/mnt/nfs");
+
     err = init_inodecache();
     if (err)
         goto out;
@@ -123,6 +129,7 @@ static int __init init_svfs(void)
 out1:
     destroy_inodecache();
 out:
+    svfs_datastore_exit();
     return err;
 }
 
@@ -130,6 +137,7 @@ static void __exit exit_svfs(void)
 {
     unregister_filesystem(&svfs_fs_type);
     destroy_inodecache();
+    svfs_datastore_exit();
 }
 
 module_init(init_svfs);

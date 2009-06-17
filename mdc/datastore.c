@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-16 21:41:52 macan>
+ * Time-stamp: <2009-06-17 11:35:43 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,27 +27,62 @@ struct list_head svfs_datastore_list;
 void svfs_datastore_init()
 {
     INIT_LIST_HEAD(&svfs_datastore_list);
-    return 0;
 }
 
 
-    list_del(&sd->list);
-struct svfs_datastore *svfs_datastore_add_new(shit)
+struct svfs_datastore *svfs_datastore_add_new(int type, char *pathname)
 {
     struct svfs_datastore *sd;
+    struct nameidata nd;
+    char *dpath, *p;
+    int err;
 
+    svfs_info(dstore, "add new type %s\n", svfs_type_convert(type));
+    /* Step 1: checking */
+    /* lookup the pathname? */
+    err = path_lookup(pathname, LOOKUP_FOLLOW, &nd);
+    if (err)
+        goto fail_lookup;
+    err = -ENOMEM;
+    dpath = __getname();
+    if (!dpath)
+        goto fail_lookup;
+    p = d_path(&nd.path, dpath, PATH_MAX);
+    svfs_info(dstore, "%s: mountpoint %s, mnt_root %s, path %s\n", 
+              pathname, nd.path.mnt->mnt_mountpoint->d_name.name,
+              nd.path.mnt->mnt_root->d_name.name,
+              p);
+    __putname(dpath);
+
+    /* Step 2: alloc and init the datastore */
+
+    err = -ENOMEM;
     sd = kmalloc(sizeof(struct svfs_datastore), GFP_KERNEL);
     if (!sd)
-        return ERR_PTR(-ENOMEM);
-
-    /* FIXME: init the datastore */
+        goto fail_release;
 
     list_add_tail(&sd->list, &svfs_datastore_list);
+    sd->type = type;
+    strncpy(sd->pathname, pathname, NAME_MAX - 1);
+    sd->root_path = nd.path;
+    
     return sd;
+
+fail_release:
+    path_put(&nd.path);
+fail_lookup:
+    return ERR_PTR(err);
 }
 
 void svfs_datastore_free(struct svfs_datastore *sd)
 {
+    list_del(&sd->list);
+    /* FIXME: free it */
+    path_put(&sd->root_path);
+    svfs_info(dstore, "d_count %d, mnt_count %d\n",
+              atomic_read(&sd->root_path.dentry->d_count),
+              atomic_read(&sd->root_path.mnt->mnt_count));
+    kfree(sd);
 }
 
 void svfs_datastore_exit()
@@ -59,8 +94,7 @@ void svfs_datastore_exit()
                                                list);
         svfs_info(dstore, "freeing datastore object: %s\n",
                   sd->pathname);
-        list_del(pos);
-        kfree(sd);
+        svfs_datastore_free(sd);
     }
 }
 

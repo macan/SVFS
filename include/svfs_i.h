@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-16 20:44:30 macan>
+ * Time-stamp: <2009-06-17 11:28:57 macan>
  *
  * Define SVFS inodes
  *
@@ -97,6 +97,20 @@ struct svfs_referal
     char llfs_pathname[NAME_MAX];
 };
 
+static inline char *svfs_type_convert(int type)
+{
+    switch (type) {
+    case LLFS_TYPE_EXT4:
+        return "ext4";
+    case LLFS_TYPE_EXT3:
+        return "ext3";
+    case LLFS_TYPE_FREE:
+        return "nofs";
+    default:
+        return "ERRFS";
+    }
+}
+    
 struct svfs_inode 
 {
     u32 version;                     /* inode version */
@@ -139,9 +153,9 @@ struct svfs_datastore
 {
     /* Using TYPE defines in svfs_i.h: LLFS_TYPE_EXT4/... */
     int type;
-    char *pathname[NAME_MAX];
+    char pathname[NAME_MAX];
     struct list_head list;
-    struct dentry *root_dentry;
+    struct path root_path;
     struct inode_operations *file_iops, *dir_iops, *symlink_iops;
     struct file_operations *file_fops, *dir_fops;
     struct address_space_operations *file_aops;

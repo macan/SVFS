@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-16 14:13:50 macan>
+ * Time-stamp: <2009-06-17 10:37:34 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -95,7 +95,6 @@ struct inode *svfs_new_inode(struct inode *dir, int mode)
     if (err)
         goto fail_drop;
 
-    dir->nlink
     svfs_debug(mdc, "allocating inode %lu\n", inode->i_ino);
 
     return inode;

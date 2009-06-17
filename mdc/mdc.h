@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-10 10:07:40 macan>
+ * Time-stamp: <2009-06-17 10:05:32 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,5 +23,6 @@
 #define __MDC_H__
 
 extern unsigned int svfs_mdc_tracing_flags;
+extern unsigned int svfs_dstore_tracing_flags;
 
 #endif

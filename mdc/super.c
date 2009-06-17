@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-16 19:08:08 macan>
+ * Time-stamp: <2009-06-17 10:12:00 macan>
  *
  * Supporting SVFS superblock operations.
  *
@@ -218,7 +218,6 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
     svfs_debug(mdc, "Reading %d bytes %d entries from backing_store %s\n",
                (int)br, ssb->bs_size, ssb->backing_store);
 #endif
-    svfs_data_store_init();
     /* TODO: should statfs to get the superblock from the stable storage? */
 
     sb->s_magic = SVFS_SUPER_MAGIC;   /* 5145 <-> SVFS */

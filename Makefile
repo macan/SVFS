@@ -2,7 +2,7 @@
 # Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
 #                           <macan@ncic.ac.cn>
 #
-# Time-stamp: <2009-06-15 19:30:19 macan>
+# Time-stamp: <2009-06-17 10:11:26 macan>
 #
 # This is the makefile for SVFS module.
 #
@@ -33,7 +33,7 @@ ifneq ($(KERNELRELEASE),)
 obj-m := svfs_client.o
 mdc-objs += $(MDC)/super.o $(MDC)/inode.o $(MDC)/namei.o $(MDC)/fsync.o \
 			$(MDC)/dir.o $(MDC)/ialloc.o $(MDC)/mdc.o $(MDC)/buffer.o \
-			$(MDC)/file.o
+			$(MDC)/file.o $(MDC)/relay.o $(MDC)/datastore.o
 backing_store-objs += $(TEST)/verif/backing_store.o
 
 svfs_client-objs += $(COMP)/client.o

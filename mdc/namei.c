@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-16 17:36:30 macan>
+ * Time-stamp: <2009-06-17 10:37:07 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -117,12 +117,12 @@ static struct dentry *svfs_lookup(struct inode *dir, struct dentry *dentry,
     retval = d_splice_alias(inode, dentry);
 
     /* Step 4: lookup the llfs inode */
-    if (S_ISDIR(inode))
+    if (S_ISDIR(inode->i_mode))
         goto out;
     llfs_dentry = svfs_relay(lookup, inode);
     if (IS_ERR(llfs_dentry)) {
         SVFS_I(inode)->state |= SVFS_STATE_DISC;
-        svfs_err(mdc, "svfs_relay 'lookup' failed %d\n", 
+        svfs_err(mdc, "svfs_relay 'lookup' failed %ld\n", 
                  PTR_ERR(llfs_dentry));
         goto out;
     }
