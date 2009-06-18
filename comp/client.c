@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-17 10:07:21 macan>
+ * Time-stamp: <2009-06-18 09:36:55 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -24,7 +24,6 @@
  *
  */
 
-#include "svfs_dep.h"
 #include "svfs.h"
 
 static unsigned int svfs_client_tracing_flags = 0x80000000;

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-17 10:37:52 macan>
+ * Time-stamp: <2009-06-18 14:09:28 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,13 @@
  *
  * find the llfs dentry, return NULL if succeed
  */
-struct dentry *svfs_relay_lookup(u32 type, struct inode *inode)
+struct dentry *svfs_relay_ext4_lookup(struct inode *inode)
 {
+    struct svfs_inode *si = SVFS_I(inode);
+    
+    svfs_info(mdc, "relay lookup for ext4, path %s\n",
+              si->llfs_md.llfs_pathname);
     return NULL;
 }
+
+

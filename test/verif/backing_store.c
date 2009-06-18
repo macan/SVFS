@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-16 17:26:28 macan>
+ * Time-stamp: <2009-06-18 14:10:30 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -149,7 +149,7 @@ void svfs_backing_store_mark_new_inode(struct svfs_super_block *ssb,
 int svfs_backing_store_update_bse(struct svfs_super_block *ssb,
                                struct dentry *dentry, struct inode *inode)
 {
-    struct backing_store_entry *bse;
+    struct backing_store_entry *bse, *parent;
     struct inode *dir = dentry->d_parent->d_inode;
     
 
@@ -157,7 +157,9 @@ int svfs_backing_store_update_bse(struct svfs_super_block *ssb,
         return -EINVAL;
 
     bse = (ssb->bse + inode->i_ino);
+    parent = (ssb->bse + dir->i_ino);
     bse->parent_offset = (u32)dir->i_ino;
+    bse->depth = parent->depth + 1;
     bse->state &= ~SVFS_BS_NEW;
     sprintf(bse->relative_path, "%s", dentry->d_name.name);
     /* FIXME: setting up the entry automatically */
@@ -165,9 +167,9 @@ int svfs_backing_store_update_bse(struct svfs_super_block *ssb,
     bse->state |= SVFS_BS_VALID;
 
     svfs_info(mdc, "Update the bse %ld: po %d, state 0x%x, "
-              "rel path %s, ref path %s\n", inode->i_ino, 
+              "rel path %s, ref path %s, depth %d\n", inode->i_ino, 
               bse->parent_offset,
-              bse->state, bse->relative_path, bse->ref_path);
+              bse->state, bse->relative_path, bse->ref_path, bse->depth);
 
     return 0;
 }
@@ -242,6 +244,7 @@ void svfs_backing_store_set_root(struct svfs_super_block *ssb)
     struct backing_store_entry *root = ssb->bse;
 
     root->parent_offset = 0;
+    root->depth = 0;
     root->state = SVFS_BS_VALID | SVFS_BS_DIR;
     root->disksize = 0xff;
     root->nlink = 2;
@@ -251,3 +254,34 @@ void svfs_backing_store_set_root(struct svfs_super_block *ssb)
     sprintf(root->relative_path, "/");
     sprintf(root->ref_path, "/");
 }
+
+int svfs_backing_store_get_path(struct svfs_super_block *ssb,
+                                struct backing_store_entry *bse,
+                                char *buf, size_t len)
+{
+    struct backing_store_entry *pos = bse;
+    int depth = bse->depth, bp = 0;
+    char *cursor[depth], *p;
+
+    if (len < 0 || !(bse->state & SVFS_BS_VALID))
+        return -EINVAL;
+    if (!depth) {
+        snprintf(buf, len, "/");
+        return 0;
+    }
+        
+    while (depth > 0) {
+        cursor[depth] = pos->relative_path;
+        pos = ssb->bse + pos->parent_offset;
+        depth--;
+    }
+
+    p = buf;
+    while (depth < bse->depth) {
+        bp = snprintf(p, len, "/%s", cursor[depth++]);
+        p += bp;
+        len -= bp;
+    }
+    return 0;
+}
+

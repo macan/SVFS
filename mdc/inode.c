@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-17 10:13:33 macan>
+ * Time-stamp: <2009-06-18 11:18:35 macan>
  *
  * inode.c for SVFS
  *
@@ -313,6 +313,7 @@ struct inode *svfs_iget(struct super_block *sb, unsigned long ino)
     {
         struct svfs_super_block *ssb = SVFS_SB(sb);
         struct backing_store_entry *bse = ssb->bse + ino;
+        int err;
 
         inode->i_nlink = bse->nlink;
         inode->i_size = bse->disksize;
@@ -325,7 +326,16 @@ struct inode *svfs_iget(struct super_block *sb, unsigned long ino)
         SVFS_I(inode)->flags = bse->disk_flags;
         /* get the ref path */
         SVFS_I(inode)->llfs_md.llfs_type = bse->llfs_type;
-        strcmp(SVFS_I(inode)->llfs_md.llfs_pathname, bse->ref_path);
+        err = svfs_backing_store_get_path(
+            ssb, bse, 
+            SVFS_I(inode)->llfs_md.llfs_pathname, NAME_MAX - 1);
+        if (err) {
+            iget_failed(inode);
+            return ERR_PTR(err);
+        }
+        
+        svfs_debug(mdc, "ino %ld, ref_path %s\n", inode->i_ino,
+                   SVFS_I(inode)->llfs_md.llfs_pathname);
 
         if (S_ISDIR(inode->i_mode)) {
             ASSERT(bse->state & SVFS_BS_DIR);

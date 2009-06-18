@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-17 10:38:46 macan>
+ * Time-stamp: <2009-06-18 14:08:43 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -128,6 +128,7 @@ extern void svfs_datastore_init(void);
 extern struct svfs_datastore *svfs_datastore_add_new(int, char *);
 extern void svfs_datastore_free(struct svfs_datastore *);
 extern void svfs_datastore_exit(void);
+extern struct svfs_datastore *svfs_datastore_get(int type);
 
 /* Include all the tracing flags */
 #include "svfs_tracing.h"
@@ -147,18 +148,27 @@ extern unsigned long svfs_backing_store_lookup(struct svfs_super_block *,
                                                unsigned long, 
                                                const char *);
 extern void svfs_backing_store_set_root(struct svfs_super_block *);
+extern int svfs_backing_store_get_path(struct svfs_super_block *,
+                                       struct backing_store_entry *,
+                                       char *, size_t);
 #endif
 
 /* relay operations */
-#define svfs_relay(name, inode) ({                                   \
-            void *retval;                                            \
-            retval = svfs_relay_##name(SVFS_I(inode)->               \
-                                       llfs_md.llfs_type, inode);    \
-            retval;                                                  \
+#define svfs_relay(name, type, inode) ({                                \
+            void *retval;                                               \
+            switch (type) {                                             \
+            case LLFS_TYPE_EXT4:                                        \
+                retval = svfs_relay_ext4_##name(inode);                 \
+                break;                                                  \
+            default:                                                    \
+                retval = ERR_PTR(-EINVAL);                              \
+                ;                                                       \
+            }                                                           \
+            retval;                                                     \
         })
-#define svfs_relay_define(name, ret, args ...)  \
-    ret svfs_relay_##name(args)
+#define svfs_relay_define(name, type, ret, args ...)    \
+    ret svfs_relay_##type##_##name(args)
 
-svfs_relay_define(lookup, struct dentry *, u32, struct inode *);
+svfs_relay_define(lookup, ext4, struct dentry *, struct inode *);
 
 #endif

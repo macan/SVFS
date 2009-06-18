@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-17 10:12:00 macan>
+ * Time-stamp: <2009-06-18 14:02:07 macan>
  *
  * Supporting SVFS superblock operations.
  *
@@ -103,6 +103,9 @@ static void svfs_destroy_inode(struct inode *inode)
 {
     svfs_debug(mdc, "destroy svfs_inode: %p\n", SVFS_I(inode));
     /* TODO: free the info in svfs_inode? */
+    if (SVFS_I(inode)->state & SVFS_STATE_CONN) {
+        path_put(&SVFS_I(inode)->llfs_md.llfs_path);
+    }
     kmem_cache_free(svfs_inode_cachep, SVFS_I(inode));
 }
 

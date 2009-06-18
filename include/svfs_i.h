@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-17 11:28:57 macan>
+ * Time-stamp: <2009-06-18 14:43:49 macan>
  *
  * Define SVFS inodes
  *
@@ -31,6 +31,7 @@
 struct backing_store_entry
 {
     u32 parent_offset;
+    u32 depth;
 #define SVFS_BS_FREE  0x00000000
 #define SVFS_BS_NEW   0x00000001
 #define SVFS_BS_DIRTY 0x00000002
@@ -91,8 +92,9 @@ struct svfs_referal
 #define LLFS_TYPE_FREE 0x00
 #define LLFS_TYPE_EXT4 0x01
 #define LLFS_TYPE_EXT3 0x02
+#define LLFS_TYPE_ANY  0x80
     u32 llfs_type;             /* llfs filesystem type */
-    struct vfs_inode *llfs_inode;            /* llfs vfs inode */
+    struct path llfs_path;     /* llfs path info */
 
     char llfs_pathname[NAME_MAX];
 };
@@ -152,15 +154,13 @@ static inline struct svfs_inode *SVFS_I(struct inode *inode)
 struct svfs_datastore
 {
     /* Using TYPE defines in svfs_i.h: LLFS_TYPE_EXT4/... */
-    int type;
+#define SVFS_DSTORE_FREE  0x00
+#define SVFS_DSTORE_VALID 0x01
+    int type, state;
     char pathname[NAME_MAX];
     struct list_head list;
     struct path root_path;
-    struct inode_operations *file_iops, *dir_iops, *symlink_iops;
-    struct file_operations *file_fops, *dir_fops;
-    struct address_space_operations *file_aops;
-    struct dentry_operations *dops;
-    struct super_operations *sops;
+    struct super_block *sb;
 };
 
 #endif

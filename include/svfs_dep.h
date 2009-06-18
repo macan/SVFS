@@ -24,6 +24,35 @@
 #define __SVFS_DEP_H__
 
 /* ext4 depends */
-#include "fs/ext4/ext4.h"
+/* dir.c */
+extern const struct file_operations ext4_dir_operations;
+
+/* file.c */
+extern const struct inode_operations ext4_file_inode_operations;
+extern const struct file_operations ext4_file_operations;
+
+/* namei.c */
+extern const struct inode_operations ext4_dir_inode_operations;
+extern const struct inode_operations ext4_special_inode_operations;
+
+/* symlink.c */
+extern const struct inode_operations ext4_symlink_inode_operations;
+extern const struct inode_operations ext4_fast_symlink_inode_operations;
+
+/* ext3 depends */
+/* dir.c */
+extern const struct file_operations ext3_dir_operations;
+
+/* file.c */
+extern const struct inode_operations ext3_file_inode_operations;
+extern const struct file_operations ext3_file_operations;
+
+/* namei.c */
+extern const struct inode_operations ext3_dir_inode_operations;
+extern const struct inode_operations ext3_special_inode_operations;
+
+/* symlink.c */
+extern const struct inode_operations ext3_symlink_inode_operations;
+extern const struct inode_operations ext3_fast_symlink_inode_operations;
 
 #endif
