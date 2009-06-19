@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-18 15:03:33 macan>
+ * Time-stamp: <2009-06-19 21:42:02 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@ static int svfs_add_dentry(struct dentry *dentry, struct inode *inode)
     struct inode *dir = dentry->d_parent->d_inode;
     struct super_block *sb = dir->i_sb;
     struct svfs_inode *si = SVFS_I(inode);
+    struct svfs_datastore *sd;
     struct file *llfs_file;
     char *ref_path;
     int retval;
@@ -44,32 +45,35 @@ static int svfs_add_dentry(struct dentry *dentry, struct inode *inode)
     sd = svfs_datastore_get(LLFS_TYPE_ANY);
     if (!sd) {
         retval = PTR_ERR(sd);
-        goto out_dget;
+        goto out_dsget;
     }
     si->llfs_md.llfs_type = sd->type;
     retval = -ENOMEM;
     ref_path = __getname();
     if (!ref_path)
-        goto out_dget;
-    retval = svfs_backign_store_get_path(SVFS_SB(sb), SVFS_SB(sb)->bse,
+        goto out_dsget;
+    retval = svfs_backing_store_get_path(SVFS_SB(sb), 
+                                         SVFS_SB(sb)->bse + inode->i_ino,
                                          si->llfs_md.llfs_pathname,
                                          NAME_MAX - 1);
     if (retval)
         goto out_putname;
     snprintf(ref_path, PATH_MAX - 1, "%s%s", sd->pathname,
              si->llfs_md.llfs_pathname);
-    svfs_info(mdc, "New LLFS path %s\n", ref_path);
+    svfs_debug(mdc, "New LLFS path %s\n", ref_path);
     llfs_file = filp_open(ref_path, O_CREAT, S_IRUSR | S_IWUSR);
     retval = PTR_ERR(llfs_file);
     if (IS_ERR(llfs_file))
         goto out_putname;
     si->llfs_md.llfs_path = llfs_file->f_path;
-    path_get(llfs_file->f_path);
+    path_get(&llfs_file->f_path);
     fput(llfs_file);
+    si->state |= SVFS_STATE_CONN;
+    retval = 0;
 
 out_putname:
     __putname(ref_path);
-out_dget:
+out_dsget:
     return retval;
 }
 
@@ -103,8 +107,8 @@ static int svfs_create(struct inode *dir, struct dentry *dentry, int mode,
         err = svfs_add_nondir(dentry, inode);
     }
 
-    svfs_debug(mdc, "create a new entry in %ld with %s(%ld)\n",
-               dir->i_ino, dentry->d_name.name, inode->i_ino);
+    svfs_debug(mdc, "create a new entry %s(%ld) in %ld with %d\n",
+               dentry->d_name.name, inode->i_ino, dir->i_ino, err);
     return err;
 }
 
@@ -166,6 +170,9 @@ static struct dentry *svfs_lookup(struct inode *dir, struct dentry *dentry,
     /* if it is a dir, then no need to propagate to llfs */
     if (S_ISDIR(inode->i_mode))
         goto out;
+    if (SVFS_I(inode)->state & SVFS_STATE_CONN)
+        goto out;
+
     retval = ERR_PTR(-EINVAL);
     sd = svfs_datastore_get(SVFS_I(inode)->llfs_md.llfs_type);
     if (!sd)
@@ -224,7 +231,21 @@ static int svfs_symlink(struct inode *dir, struct dentry *dentry,
 static int svfs_mkdir(struct inode *dir, struct dentry *dentry,
                       int mode)
 {
-    return -ENOSYS;
+    struct inode *inode;
+    int err;
+
+    inode = svfs_new_inode(dir, mode | S_IFDIR);
+    err = PTR_ERR(inode);
+    if (IS_ERR(inode))
+        goto out;
+    inode->i_op = &svfs_dir_inode_operations;
+    inode->i_fop = &svfs_dir_operations;
+    /* FIXME: shit */
+    
+#ifdef SVFS_LOCAL_TEST
+    
+#endif
+    return err;
 }
 
 static int svfs_rmdir(struct inode *dir, struct dentry *dentry)

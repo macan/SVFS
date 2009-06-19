@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-18 09:36:55 macan>
+ * Time-stamp: <2009-06-19 11:37:25 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -98,6 +98,7 @@ static struct file_system_type svfs_fs_type = {
 static int __init init_svfs(void)
 {
     int err;
+    struct svfs_datastore *sd;
 
     printk(KERN_INFO "%s: %s\n"
               "Compiled at %s @ %s\n", 
@@ -114,7 +115,10 @@ static int __init init_svfs(void)
 #endif
 
     svfs_datastore_init();
-    svfs_datastore_add_new(LLFS_TYPE_EXT4, "/mnt/nfs");
+    sd = svfs_datastore_add_new(LLFS_TYPE_EXT4, "/mnt/nfs");
+    err = PTR_ERR(sd);
+    if (err)
+        return err;
 
     err = init_inodecache();
     if (err)

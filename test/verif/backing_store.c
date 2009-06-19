@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-18 14:10:30 macan>
+ * Time-stamp: <2009-06-19 17:35:54 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -83,6 +83,7 @@ ssize_t svfs_backing_store_read(struct svfs_super_block *ssb)
     if (!ssb->bse || !ssb->bs_filp)
         return -EINVAL;
 
+    ssb->bs_filp->f_pos = 0;
     set_fs(KERNEL_DS);
     retval = __svfs_backing_store_uread(ssb->bs_filp, ssb->bse, 
                                         SVFS_BACKING_STORE_SIZE);
@@ -99,20 +100,24 @@ ssize_t svfs_backing_store_write(struct svfs_super_block *ssb)
     if (!ssb->bse || !ssb->bs_filp)
         return -EINVAL;
 
+    /* seek to head */
+    ssb->bs_filp->f_pos = 0;
     set_fs(KERNEL_DS);
     retval = __svfs_backing_store_uwrite(ssb->bs_filp, ssb->bse,
                                          SVFS_BACKING_STORE_SIZE);
     set_fs(oldfs);
 
-#if 0
+#if 1
     {
         /* Checking */
-        u8 *i = (u8 *)ssb->bse;
-        while (i < (((u8 *)ssb->bse) + SVFS_BACKING_STORE_SIZE)) {
-            if (*i) {
-                svfs_info(mdc, "invalid offset %ld\n", i - (u8 *)ssb->bse);
+        int i;
+        struct backing_store_entry *bse = ssb->bse;
+        for (i = 0; i < ssb->bs_size; i++, bse++) {
+            if (bse->state & SVFS_BS_VALID) {
+                svfs_debug(mdc, "ino %d, state 0x%x, atime %lx\n", 
+                           i, bse->state,
+                           bse->atime.tv_sec);
             }
-            i++;
         }
     }
 #endif
@@ -194,9 +199,12 @@ void svfs_backing_store_commit_bse(struct inode *inode)
     bse->llfs_type = si->llfs_md.llfs_type;
     /* FIXME: should copy the llfs_path to bse! */
 
-    svfs_debug(mdc, "bse %ld nlink %d, size %lu, mode 0x%x\n",
+    svfs_debug(mdc, "bse %ld nlink %d, size %lu, mode 0x%x, "
+               "atime %lx\n",
                inode->i_ino,
-               bse->nlink, (unsigned long)bse->disksize, bse->mode);
+               bse->nlink, 
+               (unsigned long)bse->disksize, 
+               bse->mode, inode->i_atime.tv_sec);
     if (bse->state & SVFS_BS_DIRTY)
         bse->state &= ~SVFS_BS_DIRTY;
     if (bse->state & SVFS_BS_NEW)
@@ -263,6 +271,7 @@ int svfs_backing_store_get_path(struct svfs_super_block *ssb,
     int depth = bse->depth, bp = 0;
     char *cursor[depth], *p;
 
+    memset(buf, 0, len);
     if (len < 0 || !(bse->state & SVFS_BS_VALID))
         return -EINVAL;
     if (!depth) {
@@ -271,9 +280,8 @@ int svfs_backing_store_get_path(struct svfs_super_block *ssb,
     }
         
     while (depth > 0) {
-        cursor[depth] = pos->relative_path;
+        cursor[--depth] = pos->relative_path;
         pos = ssb->bse + pos->parent_offset;
-        depth--;
     }
 
     p = buf;
@@ -285,3 +293,21 @@ int svfs_backing_store_get_path(struct svfs_super_block *ssb,
     return 0;
 }
 
+void svfs_backing_store_write_dirty(struct svfs_super_block *ssb)
+{
+    int i = 0;
+    struct backing_store_entry *bse = ssb->bse;
+    struct inode *inode;
+
+    for (; i < ssb->bs_size; i++, bse++) {
+        if (bse->state & SVFS_BS_DIRTY) {
+            inode = ilookup(ssb->sb, i);
+            if (inode) {
+                /* this is the valid inode, do the data commit */
+                svfs_backing_store_commit_bse(inode);
+            } else
+                continue;
+            iput(inode);
+        }
+    }    
+}

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-17 10:37:34 macan>
+ * Time-stamp: <2009-06-19 10:15:15 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,26 @@
 
 void svfs_free_inode(struct inode *inode)
 {
+    struct super_block *sb = inode->i_sb;
+
     /* TODO: should we do sth here? */
+    if (atomic_read(&inode->i_count) > 1) {
+        svfs_err(mdc, "inode has count=%d\n",
+                 atomic_read(&inode->i_count));
+        return;
+    }
+    if (inode->i_nlink) {
+        svfs_err(mdc, "inode has nlink=%d\n",
+                 inode->i_nlink);
+        return;
+    }
+    if (!sb) {
+        svfs_err(mdc, "inode on nonexistent device\n");
+        return;
+    }
+    svfs_debug(mdc, "freeing inode %lu\n", inode->i_ino);
+    
+    clear_inode(inode);
     return;
 }
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-18 14:08:43 macan>
+ * Time-stamp: <2009-06-19 16:18:00 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -151,20 +151,21 @@ extern void svfs_backing_store_set_root(struct svfs_super_block *);
 extern int svfs_backing_store_get_path(struct svfs_super_block *,
                                        struct backing_store_entry *,
                                        char *, size_t);
+extern void svfs_backing_store_write_dirty(struct svfs_super_block *);
 #endif
 
 /* relay operations */
-#define svfs_relay(name, type, inode) ({                                \
-            void *retval;                                               \
-            switch (type) {                                             \
-            case LLFS_TYPE_EXT4:                                        \
-                retval = svfs_relay_ext4_##name(inode);                 \
-                break;                                                  \
-            default:                                                    \
-                retval = ERR_PTR(-EINVAL);                              \
-                ;                                                       \
-            }                                                           \
-            retval;                                                     \
+#define svfs_relay(name, type, inode) ({                \
+            void *retval;                               \
+            switch (type) {                             \
+            case LLFS_TYPE_EXT4:                        \
+                retval = svfs_relay_ext4_##name(inode); \
+                break;                                  \
+            default:                                    \
+                retval = ERR_PTR(-EINVAL);              \
+                ;                                       \
+            }                                           \
+            retval;                                     \
         })
 #define svfs_relay_define(name, type, ret, args ...)    \
     ret svfs_relay_##type##_##name(args)

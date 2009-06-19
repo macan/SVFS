@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-18 14:45:09 macan>
+ * Time-stamp: <2009-06-19 09:35:58 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -132,7 +132,10 @@ fail_lookup:
 struct svfs_datastore *svfs_datastore_get(int type)
 {
     struct svfs_datastore *pos;
-    int select, cur = 0;
+    int select = 0, cur = 0;
+
+    if (!svfs_datastore_count)
+        return NULL;
 
     if (type & LLFS_TYPE_ANY)
         select = random32() % svfs_datastore_count;

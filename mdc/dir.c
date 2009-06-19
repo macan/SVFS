@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-10 15:09:35 macan>
+ * Time-stamp: <2009-06-19 21:05:00 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,6 @@
 
 static int svfs_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
-    return -ENOTSUPP;
 }
 
 static int svfs_release_dir(struct inode *inode, struct file *filp)

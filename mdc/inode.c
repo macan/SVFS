@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-18 11:18:35 macan>
+ * Time-stamp: <2009-06-19 17:30:00 macan>
  *
  * inode.c for SVFS
  *
@@ -38,7 +38,8 @@ int svfs_write_inode(struct inode *inode, int wait)
     if (!wait)
         return 0;
 
-    svfs_debug(mdc, "svfs write inode now, wait %d\n", wait);
+    svfs_debug(mdc, "svfs write inode %ld(0x%lx) now, wait %d\n",
+               inode->i_ino, inode->i_state, wait);
 
 #ifdef SVFS_LOCAL_TEST
     /* FIXME: write the path to bse ? */
@@ -54,6 +55,8 @@ int svfs_mark_inode_dirty(struct inode *inode)
 {
     struct svfs_inode *si = SVFS_I(inode);
 
+    svfs_debug(mdc, "dirty inode %ld\n", inode->i_ino);
+    dump_stack();
     /* TODO: dirty the disk structure to write */
 #ifdef SVFS_LOCAL_TEST
     /* FIXME: setting the internal flags? */
@@ -307,6 +310,7 @@ struct inode *svfs_iget(struct super_block *sb, unsigned long ino)
     si = SVFS_I(inode);
     /* TODO: find the ino entry and fill it in the inode! */
 
+    svfs_debug(mdc, "I_NEW inode %p\n", inode);
     si->version = 0;
     inode->i_ino = ino;
 #ifdef SVFS_LOCAL_TEST
@@ -315,6 +319,7 @@ struct inode *svfs_iget(struct super_block *sb, unsigned long ino)
         struct backing_store_entry *bse = ssb->bse + ino;
         int err;
 
+        ASSERT(bse->state & SVFS_BS_VALID);
         inode->i_nlink = bse->nlink;
         inode->i_size = bse->disksize;
         inode->i_mode = bse->mode;
@@ -352,10 +357,12 @@ struct inode *svfs_iget(struct super_block *sb, unsigned long ino)
         } else {
             /* FIXME: special operations */
         }
-        svfs_debug(mdc, "nlink %d, size %lu, mode 0x%x\n",
+        svfs_debug(mdc, "nlink %d, size %lu, mode 0x%x, "
+                   "atime %lx\n",
                    inode->i_nlink,
                    (unsigned long)inode->i_size,
-                   inode->i_mode);
+                   inode->i_mode,
+                   inode->i_atime.tv_sec);
     }
 #endif
     svfs_set_inode_flags(inode);

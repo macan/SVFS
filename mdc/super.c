@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-18 14:02:07 macan>
+ * Time-stamp: <2009-06-19 15:09:39 macan>
  *
  * Supporting SVFS superblock operations.
  *
@@ -93,6 +93,7 @@ static struct inode *svfs_alloc_inode(struct super_block *sb)
     if (!si)
         return NULL;
     /* TODO: init the svfs inode here */
+    si->state = 0;
     /* TODO: should journal the new inode? */
 
     svfs_debug(mdc, "alloc new svfs_inode: %p\n", si);
@@ -101,7 +102,9 @@ static struct inode *svfs_alloc_inode(struct super_block *sb)
 
 static void svfs_destroy_inode(struct inode *inode)
 {
-    svfs_debug(mdc, "destroy svfs_inode: %p\n", SVFS_I(inode));
+    svfs_debug(mdc, "destroy svfs_inode: %p CONN 0x%x\n", 
+               SVFS_I(inode),
+               (SVFS_I(inode)->state & SVFS_STATE_CONN));
     /* TODO: free the info in svfs_inode? */
     if (SVFS_I(inode)->state & SVFS_STATE_CONN) {
         path_put(&SVFS_I(inode)->llfs_md.llfs_path);
@@ -247,6 +250,7 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
         struct svfs_inode *si = SVFS_I(inode);
 
         si->version = 0;
+        si->state = SVFS_STATE_DISC;
         
         inode->i_ino = SVFS_ROOT_INODE;
         inode->i_flags = S_NOATIME | S_NOCMTIME;
@@ -410,6 +414,7 @@ void svfs_kill_super(struct super_block *s)
 #ifdef SVFS_LOCAL_TEST
     {
         ssize_t bw;
+        svfs_backing_store_write_dirty(ssb);
         bw = svfs_backing_store_write(ssb);
         if (bw >= 0)
             svfs_debug(mdc, "Write %d bytes to backing_store %s\n",

@@ -2,7 +2,7 @@
 # Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
 #                           <macan@ncic.ac.cn>
 #
-# Time-stamp: <2009-06-17 10:11:26 macan>
+# Time-stamp: <2009-06-19 16:53:00 macan>
 #
 # This is the makefile for SVFS module.
 #
@@ -12,7 +12,7 @@ ifeq ($(PWD),)
 PWD := $(shell pwd)
 endif
 
-KERNEL_NAME := 2.6.30-rc8
+KERNEL_NAME := 2.6.30
 KERNEL_INC := /lib/modules/$(KERNEL_NAME)/build
 
 COMPILE_DATE = `date`
@@ -51,7 +51,7 @@ modules:
 endif
 
 install:
-	scp *.ko root@10.10.111.82:/lib/modules/$(KERNEL_NAME)/kernel/fs/
+	scp *.ko root@10.10.111.82:/root/svfs/
 
 clean:
 	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions Module* modules.* .*.o.*
