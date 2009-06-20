@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-19 17:35:54 macan>
+ * Time-stamp: <2009-06-20 10:01:22 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -145,6 +145,24 @@ unsigned long svfs_backing_store_lookup(struct svfs_super_block *ssb,
     return -1UL;
 }
 
+unsigned long svfs_backing_store_find_child(struct svfs_super_block *ssb,
+                                            unsigned long parent_ino,
+                                            unsigned long offset)
+{
+    unsigned long ino;
+    struct backing_store_entry *bse = ssb->bse;
+
+    for (ino = offset + 1; ino < ssb->bs_size; ino++, bse++) {
+        if (!(bse->state & SVFS_BS_VALID))
+            continue;
+        if (parent_ino == ino)
+            continue;
+        if (bse->parent_offset == parent_ino)
+            return ino;
+    }
+    return -1UL;
+}
+
 void svfs_backing_store_mark_new_inode(struct svfs_super_block *ssb, 
                                        int ino)
 {
@@ -188,7 +206,10 @@ void svfs_backing_store_commit_bse(struct inode *inode)
     
     svfs_get_inode_flags(si);
     bse->disk_flags = si->flags;
-    bse->disksize = inode->i_size;
+    if (S_ISDIR(inode->i_mode))
+        bse->disksize = inode->i_size = SVFS_SB(inode->i_sb)->bs_size;
+    else
+        bse->disksize = inode->i_size;
     bse->nlink = inode->i_nlink;
     bse->mode = inode->i_mode;
     bse->uid = inode->i_uid;

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-19 21:42:02 macan>
+ * Time-stamp: <2009-06-20 09:42:12 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
 #include "svfs.h"
 
 /* Adding one dentry in the dir, filesystem special opeartions */
-static int svfs_add_dentry(struct dentry *dentry, struct inode *inode)
+static int svfs_add_entry(struct dentry *dentry, struct inode *inode)
 {
     struct inode *dir = dentry->d_parent->d_inode;
     struct super_block *sb = dir->i_sb;
@@ -42,6 +42,11 @@ static int svfs_add_dentry(struct dentry *dentry, struct inode *inode)
 
     ASSERT(si->state & SVFS_STATE_NEW);
     /* TODO: alloc the llfs inode? */
+    if (S_ISDIR(inode->i_mode))
+        goto out;
+    if (SVFS_I(inode)->state & SVFS_STATE_CONN)
+        goto out;
+    
     sd = svfs_datastore_get(LLFS_TYPE_ANY);
     if (!sd) {
         retval = PTR_ERR(sd);
@@ -74,12 +79,13 @@ static int svfs_add_dentry(struct dentry *dentry, struct inode *inode)
 out_putname:
     __putname(ref_path);
 out_dsget:
+out:
     return retval;
 }
 
 static int svfs_add_nondir(struct dentry *dentry, struct inode *inode)
 {
-    int err = svfs_add_dentry(dentry, inode);
+    int err = svfs_add_entry(dentry, inode);
     if (!err) {
         svfs_mark_inode_dirty(inode);
         d_instantiate(dentry, inode);
@@ -240,11 +246,23 @@ static int svfs_mkdir(struct inode *dir, struct dentry *dentry,
         goto out;
     inode->i_op = &svfs_dir_inode_operations;
     inode->i_fop = &svfs_dir_operations;
-    /* FIXME: shit */
+    inode->i_nlink = 2;
+    inode->i_size = 0;          /* default value: 0? */
+    err = svfs_add_entry(dentry, inode);
+    if (!err) {
+        svfs_mark_inode_dirty(inode);
+        d_instantiate(dentry, inode);
+        inc_nlink(dir);
+        svfs_mark_inode_dirty(dir);
+    } else {
+        drop_nlink(inode);
+        iput(inode);
+    }
+
+    svfs_debug(mdc, "mkdir a new entry %s(%ld) in %ld with %d\n",
+               dentry->d_name.name, inode->i_ino, dir->i_ino, err);
     
-#ifdef SVFS_LOCAL_TEST
-    
-#endif
+out:
     return err;
 }
 
