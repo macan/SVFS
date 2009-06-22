@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-18 14:43:49 macan>
+ * Time-stamp: <2009-06-22 11:11:25 macan>
  *
  * Define SVFS inodes
  *
@@ -94,7 +94,7 @@ struct svfs_referal
 #define LLFS_TYPE_EXT3 0x02
 #define LLFS_TYPE_ANY  0x80
     u32 llfs_type;             /* llfs filesystem type */
-    struct path llfs_path;     /* llfs path info */
+    struct file *llfs_filp;
 
     char llfs_pathname[NAME_MAX];
 };

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-20 10:01:22 macan>
+ * Time-stamp: <2009-06-22 19:32:14 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -114,8 +114,9 @@ ssize_t svfs_backing_store_write(struct svfs_super_block *ssb)
         struct backing_store_entry *bse = ssb->bse;
         for (i = 0; i < ssb->bs_size; i++, bse++) {
             if (bse->state & SVFS_BS_VALID) {
-                svfs_debug(mdc, "ino %d, state 0x%x, atime %lx\n", 
-                           i, bse->state,
+                svfs_debug(mdc, "ino %d, size %lu, "
+                           "state 0x%x, atime %lx\n", 
+                           i, (unsigned long)bse->disksize, bse->state,
                            bse->atime.tv_sec);
             }
         }
@@ -150,15 +151,16 @@ unsigned long svfs_backing_store_find_child(struct svfs_super_block *ssb,
                                             unsigned long offset)
 {
     unsigned long ino;
-    struct backing_store_entry *bse = ssb->bse;
+    struct backing_store_entry *bse = ssb->bse + offset + 1;
 
     for (ino = offset + 1; ino < ssb->bs_size; ino++, bse++) {
         if (!(bse->state & SVFS_BS_VALID))
             continue;
         if (parent_ino == ino)
             continue;
-        if (bse->parent_offset == parent_ino)
+        if (bse->parent_offset == parent_ino) {
             return ino;
+        }
     }
     return -1UL;
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-20 09:42:12 macan>
+ * Time-stamp: <2009-06-22 21:45:11 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -65,13 +65,12 @@ static int svfs_add_entry(struct dentry *dentry, struct inode *inode)
         goto out_putname;
     snprintf(ref_path, PATH_MAX - 1, "%s%s", sd->pathname,
              si->llfs_md.llfs_pathname);
-    svfs_debug(mdc, "New LLFS path %s\n", ref_path);
-    llfs_file = filp_open(ref_path, O_CREAT, S_IRUSR | S_IWUSR);
+    svfs_debug(mdc, "New LLFS path %s, state 0x%x\n", ref_path, si->state);
+    llfs_file = filp_open(ref_path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
     retval = PTR_ERR(llfs_file);
     if (IS_ERR(llfs_file))
         goto out_putname;
-    si->llfs_md.llfs_path = llfs_file->f_path;
-    path_get(&llfs_file->f_path);
+    si->llfs_md.llfs_filp = llfs_file;
     fput(llfs_file);
     si->state |= SVFS_STATE_CONN;
     retval = 0;
@@ -149,6 +148,7 @@ static struct dentry *svfs_lookup(struct inode *dir, struct dentry *dentry,
     unsigned long ino;
     char *ref_path;
     struct svfs_datastore *sd;
+    const struct cred *cred = current_cred();
     struct nameidata llfs_nd;
     int err;
 
@@ -191,9 +191,12 @@ static struct dentry *svfs_lookup(struct inode *dir, struct dentry *dentry,
     err = path_lookup(ref_path, LOOKUP_FOLLOW, &llfs_nd);
     if (err)
         goto fail_lookup;
-    /* we get the ref dentry */
-    SVFS_I(inode)->llfs_md.llfs_path = llfs_nd.path;
-    ASSERT(SVFS_I(inode)->llfs_md.llfs_path.dentry);
+    /* we get the ref dentry, get the filp next */
+    SVFS_I(inode)->llfs_md.llfs_filp = dentry_open(llfs_nd.path.dentry,
+                                                   llfs_nd.path.mnt,
+                                                   O_RDWR, cred);
+    if (IS_ERR(SVFS_I(inode)->llfs_md.llfs_filp))
+        goto out_put_path;
     
     llfs_dentry = svfs_relay(lookup, 
                              SVFS_I(inode)->llfs_md.llfs_type, inode);
@@ -201,7 +204,7 @@ static struct dentry *svfs_lookup(struct inode *dir, struct dentry *dentry,
         SVFS_I(inode)->state |= SVFS_STATE_DISC;
         svfs_err(mdc, "svfs_relay 'lookup' failed %ld\n", 
                  PTR_ERR(llfs_dentry));
-        goto out_put;
+        goto out_put_filp;
     }
     SVFS_I(inode)->state |= SVFS_STATE_CONN;
     retval = NULL;
@@ -209,8 +212,16 @@ static struct dentry *svfs_lookup(struct inode *dir, struct dentry *dentry,
 out:
     __putname(ref_path);
     return retval;
-out_put:
-    path_put(&llfs_nd.path);
+out_put_path:
+    /* path_put(&llfs_nd.path); */
+    {
+        svfs_debug(mdc, "llfs_nd.path->dentry %d, vfsmount %d\n",
+                   atomic_read(&llfs_nd.path.dentry->d_count),
+                   atomic_read(&llfs_nd.path.mnt->mnt_count));
+    }
+    goto out;
+out_put_filp:
+    fput(SVFS_I(inode)->llfs_md.llfs_filp);
     goto out;
 fail_lookup:
     retval = ERR_PTR(err);

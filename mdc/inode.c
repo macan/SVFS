@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-19 17:30:00 macan>
+ * Time-stamp: <2009-06-22 20:09:30 macan>
  *
  * inode.c for SVFS
  *
@@ -55,8 +55,8 @@ int svfs_mark_inode_dirty(struct inode *inode)
 {
     struct svfs_inode *si = SVFS_I(inode);
 
-    svfs_debug(mdc, "dirty inode %ld\n", inode->i_ino);
     dump_stack();
+    svfs_debug(mdc, "dirty inode %ld\n", inode->i_ino);
     /* TODO: dirty the disk structure to write */
 #ifdef SVFS_LOCAL_TEST
     /* FIXME: setting the internal flags? */
@@ -88,7 +88,26 @@ void svfs_truncate(struct inode *inode)
      * Step 1: checking
      * Step 2: truncate the i_disksize, caculate new OSD stripes
      * Step 3: do it on OSD and MDS
+     * Step 4: relay to LLFS?
      */
+    struct svfs_inode *si = SVFS_I(inode);
+    int ret;
+
+    /* checking the llfs_md */
+    if (!(si->state & SVFS_STATE_CONN)) {
+        ret = llfs_lookup(inode);
+        if (ret)
+            return;
+    }
+    /* shall we relay the request to LLFS? */
+    if (si->disksize > inode->i_size) {
+        ret = vmtruncate(si->llfs_md.llfs_filp->f_dentry->d_inode, 
+                         inode->i_size);
+        if (ret)
+            return;
+    }
+    svfs_debug(mdc, "relay the truncate to LLFS, ino %ld, size %lu\n",
+               inode->i_ino, (unsigned long)inode->i_size);
     return;
 }
 
@@ -184,9 +203,10 @@ static int svfs_writepages(struct address_space *mapping,
     return -ENOSYS;
 }
 
-static int svfs_write_begin(struct file *file, struct address_space *mapping,
-                            loff_t pos, unsigned len, unsigned flags,
-                            struct page **pagep, void **fsdata)
+static 
+int svfs_write_begin(struct file *file, struct address_space *mapping,
+                     loff_t pos, unsigned len, unsigned flags,
+                     struct page **pagep, void **fsdata)
 {
     return -ENOSYS;
 }
@@ -339,7 +359,8 @@ struct inode *svfs_iget(struct super_block *sb, unsigned long ino)
             return ERR_PTR(err);
         }
         
-        svfs_debug(mdc, "ino %ld, ref_path %s\n", inode->i_ino,
+        svfs_debug(mdc, "ino %ld, size %lu ,ref_path %s\n", 
+                   inode->i_ino, (unsigned long)inode->i_size,
                    SVFS_I(inode)->llfs_md.llfs_pathname);
 
         if (S_ISDIR(inode->i_mode)) {
