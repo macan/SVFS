@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-22 21:45:11 macan>
+ * Time-stamp: <2009-06-23 10:16:00 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -71,7 +71,6 @@ static int svfs_add_entry(struct dentry *dentry, struct inode *inode)
     if (IS_ERR(llfs_file))
         goto out_putname;
     si->llfs_md.llfs_filp = llfs_file;
-    fput(llfs_file);
     si->state |= SVFS_STATE_CONN;
     retval = 0;
 
@@ -201,6 +200,7 @@ static struct dentry *svfs_lookup(struct inode *dir, struct dentry *dentry,
     llfs_dentry = svfs_relay(lookup, 
                              SVFS_I(inode)->llfs_md.llfs_type, inode);
     if (IS_ERR(llfs_dentry)) {
+        retval = llfs_dentry;
         SVFS_I(inode)->state |= SVFS_STATE_DISC;
         svfs_err(mdc, "svfs_relay 'lookup' failed %ld\n", 
                  PTR_ERR(llfs_dentry));

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-22 21:41:38 macan>
+ * Time-stamp: <2009-06-23 10:18:08 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -162,6 +162,8 @@ svfs_file_aio_write(struct kiocb *iocb, const struct iovec *iov,
     }
 
     BUG_ON(iocb->ki_pos != pos);
+    ASSERT(llfs_filp->f_dentry);
+    ASSERT(llfs_filp->f_dentry->d_inode);
     
     llfs_filp = si->llfs_md.llfs_filp;
     llfs_filp->f_pos = pos;
@@ -203,7 +205,8 @@ svfs_file_aio_write(struct kiocb *iocb, const struct iovec *iov,
     /* should update the file info */
     file_update_time(filp);
     if (pos + ret > inode->i_size) {
-        svfs_info(mdc, "shit with pos %lu count %ld, original i_size %lu\n",
+        svfs_info(mdc, "update with pos %lu count %ld, "
+                  "original i_size %lu\n",
                   (unsigned long)pos, ret, 
                   (unsigned long)inode->i_size);
         i_size_write(inode, pos + ret);
