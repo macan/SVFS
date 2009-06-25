@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-22 19:32:14 macan>
+ * Time-stamp: <2009-06-24 17:23:44 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -136,7 +136,8 @@ unsigned long svfs_backing_store_lookup(struct svfs_super_block *ssb,
     while (ino < SVFS_BACKING_STORE_SIZE / 
            sizeof(struct backing_store_entry)) {
         if (bse->parent_offset == dir_ino &&
-            !strcmp(bse->relative_path, name)) {
+            !strcmp(bse->relative_path, name) && 
+                    bse->state) {
             return ino;
         }
         ino++;
@@ -144,6 +145,25 @@ unsigned long svfs_backing_store_lookup(struct svfs_super_block *ssb,
     }
     
     return -1UL;
+}
+
+int svfs_backing_store_delete(struct svfs_super_block *ssb,
+                              unsigned long dir_ino,
+                              unsigned long ino,
+                              const char *name)
+{
+    struct backing_store_entry *bse = ssb->bse + ino;
+
+    if (bse->state & SVFS_BS_VALID) {
+        /* checking it */
+        ASSERT(dir_ino == bse->parent_offset);
+        ASSERT(!strncmp(bse->relative_path, name, strlen(name)));
+        bse->state |= SVFS_BS_DELETING;
+    } else {
+        svfs_warning(mdc, "delete invalid bse entry %lu %s @ %lu\n",
+                     ino, name, dir_ino);
+    }
+    return 0;
 }
 
 unsigned long svfs_backing_store_find_child(struct svfs_super_block *ssb,
@@ -206,6 +226,13 @@ void svfs_backing_store_commit_bse(struct inode *inode)
 
     bse = (SVFS_SB(inode->i_sb)->bse + inode->i_ino);
     
+    /* checking the freeing flags */
+    if (bse->state & SVFS_BS_DELETING) {
+        ASSERT(inode->i_state & I_FREEING);
+        bse->state = 0;
+        return;
+    }
+
     svfs_get_inode_flags(si);
     bse->disk_flags = si->flags;
     if (S_ISDIR(inode->i_mode))

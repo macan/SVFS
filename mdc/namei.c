@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-23 10:16:00 macan>
+ * Time-stamp: <2009-06-25 14:05:31 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -66,7 +66,8 @@ static int svfs_add_entry(struct dentry *dentry, struct inode *inode)
     snprintf(ref_path, PATH_MAX - 1, "%s%s", sd->pathname,
              si->llfs_md.llfs_pathname);
     svfs_debug(mdc, "New LLFS path %s, state 0x%x\n", ref_path, si->state);
-    llfs_file = filp_open(ref_path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    llfs_file = filp_open(ref_path, O_RDWR | O_CREAT, 
+                          S_IRUSR | S_IWUSR | S);
     retval = PTR_ERR(llfs_file);
     if (IS_ERR(llfs_file))
         goto out_putname;
@@ -236,7 +237,86 @@ static int svfs_link(struct dentry *old_dentry, struct inode *dir,
 
 static int svfs_unlink(struct inode *dir, struct dentry *dentry)
 {
-    return -ENOSYS;
+    struct super_block *sb = dir->i_sb;
+    struct inode *inode = dentry->d_inode;
+    struct file *llfs_filp;
+    unsigned long ino = -1UL;
+    int ret = 0;
+    
+    /* first, we should relay the unlink to LLFS now */
+    if (S_ISDIR(inode->i_mode))
+        goto bypass;
+    if (!(SVFS_I(inode)->state & SVFS_STATE_CONN)) {
+        /* open it? */
+        ret = llfs_lookup(inode);
+        if (ret)
+            goto out;
+    }
+    llfs_filp = SVFS_I(inode)->llfs_md.llfs_filp;
+    /* do path get here? */
+    svfs_debug(mdc, "1 dentry->d_count %d, inode->i_count %d\n",
+              atomic_read(&llfs_filp->f_dentry->d_count),
+              atomic_read(&llfs_filp->f_dentry->d_inode->i_count));
+    dget(llfs_filp->f_dentry);
+    mutex_lock(&llfs_filp->f_dentry->d_parent->d_inode->i_mutex);
+    atomic_inc(&llfs_filp->f_dentry->d_inode->i_count);
+    ret = mnt_want_write(llfs_filp->f_vfsmnt);
+    if (ret)
+        goto out_free;
+
+    ret = vfs_unlink(llfs_filp->f_dentry->d_parent->d_inode,
+                     llfs_filp->f_dentry);
+    mnt_drop_write(llfs_filp->f_vfsmnt);
+out_free:
+    mutex_unlock(&llfs_filp->f_dentry->d_parent->d_inode->i_mutex);
+    dput(llfs_filp->f_dentry);
+    iput(llfs_filp->f_dentry->d_inode);
+    svfs_debug(mdc, "2 dentry->d_count %d, inode->i_count %d\n",
+              atomic_read(&llfs_filp->f_dentry->d_count),
+              atomic_read(&llfs_filp->f_dentry->d_inode->i_count));
+    if (ret)
+        goto out;
+
+bypass:
+#ifdef SVFS_LOCAL_TEST
+    ret = -EINVAL;
+    ino = svfs_backing_store_lookup(SVFS_SB(sb), dir->i_ino,
+                                    dentry->d_name.name);
+    if (ino == -1UL) {
+        svfs_warning(mdc, "can not find the entry %s\n",
+                     dentry->d_name.name);
+        goto out;
+    } else {
+        svfs_info(mdc, "find the entry %s @ %ld\n",
+                  dentry->d_name.name, ino);
+    }
+#endif
+    ASSERT(inode);
+    if (!inode->i_nlink) {
+        svfs_warning(mdc, "svfs_unlink deleting nonexistent file "
+                     "(%lu), %d", inode->i_ino, inode->i_nlink);
+        inode->i_nlink = 1;
+    }
+#ifdef SVFS_LOCAL_TEST
+    /* delete the entry in backing store */
+    ret = -EINVAL;
+    ret = svfs_backing_store_delete(SVFS_SB(sb), dir->i_ino, ino, 
+                                    dentry->d_name.name);
+    if (ret) {
+        goto out;
+    }
+#endif
+    dir->i_ctime = dir->i_mtime = CURRENT_TIME;
+    svfs_mark_inode_dirty(dir);
+    drop_nlink(inode);
+    inode->i_ctime = CURRENT_TIME;
+    svfs_mark_inode_dirty(inode);
+    
+    ret = 0;
+    svfs_info(mdc, "unlink ino %ld %s in %ld.\n", inode->i_ino,
+              dentry->d_name.name, dir->i_ino);
+out:
+    return ret;
 }
 
 static int svfs_symlink(struct inode *dir, struct dentry *dentry, 

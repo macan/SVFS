@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-22 11:11:25 macan>
+ * Time-stamp: <2009-06-24 17:27:51 macan>
  *
  * Define SVFS inodes
  *
@@ -36,6 +36,7 @@ struct backing_store_entry
 #define SVFS_BS_NEW   0x00000001
 #define SVFS_BS_DIRTY 0x00000002
 #define SVFS_BS_VALID 0x00000004
+#define SVFS_BS_DELETING 0x00000008
 #define SVFS_BS_DIR   0x80000000
 #define SVFS_BS_FILE  0x40000000
 #define SVFS_BS_LINK  0x20000000

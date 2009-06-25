@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-23 10:18:08 macan>
+ * Time-stamp: <2009-06-23 21:49:47 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -151,7 +151,8 @@ svfs_file_aio_write(struct kiocb *iocb, const struct iovec *iov,
     ssize_t ret = 0, bw;
     int seg;
 
-    svfs_debug(mdc, "entering svfs_file_aio_write, pos %lu, check 0x%x\n",
+    svfs_debug(mdc, "entering, f_mode 0x%x, pos %lu, check 0x%x\n",
+               filp->f_mode,
                (unsigned long)pos,
                (si->state & SVFS_STATE_CONN));
     if (!(si->state & SVFS_STATE_CONN)) {
@@ -216,9 +217,20 @@ out:
     return ret;
 }
 
+loff_t svfs_file_llseek(struct file *file, loff_t offset, int origin)
+{
+	loff_t n;
+    svfs_debug(mdc, "offset %ld, origin %d\n", 
+               (unsigned long)offset, origin);
+	mutex_lock(&file->f_dentry->d_inode->i_mutex);
+	n = generic_file_llseek_unlocked(file, offset, origin);
+	mutex_unlock(&file->f_dentry->d_inode->i_mutex);
+	return n;
+}
+
 const struct file_operations svfs_file_operations = {
     /* FIXME */
-    .llseek = generic_file_llseek,
+    .llseek = svfs_file_llseek,
     .open = generic_file_open,
     .aio_read = svfs_file_aio_read,
     .aio_write = svfs_file_aio_write,
