@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-24 16:42:51 macan>
+ * Time-stamp: <2009-06-26 15:13:00 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -65,6 +65,7 @@
 #define SVFS_INFO    0x80000000
 #define SVFS_WARNING 0x40000000
 #define SVFS_ERR     0x20000000
+#define SVFS_VERBOSE 0x00000004 /* more infos than debug mode */
 #define SVFS_PRECISE 0x00000002
 #define SVFS_DEBUG   0x00000001
 
@@ -77,6 +78,24 @@
             printk(lvl f, ## a);                        \
         }                                               \
     } while (0)
+
+#define IS_SVFS_DEBUG(module) ({                            \
+            int ret;                                        \
+            if (svfs_##module##_tracing_flags & SVFS_DEBUG) \
+                ret = 1;                                    \
+            else                                            \
+                ret = 0;                                    \
+            ret;                                            \
+        })
+
+#define IS_SVFS_VERBOSE(module) ({                              \
+            int ret;                                            \
+            if (svfs_##module##_tracing_flags & SVFS_VERBOSE)   \
+                ret = 1;                                        \
+            else                                                \
+                ret = 0;                                        \
+            ret;                                                \
+        })
 
 #define svfs_info(module, f, a...)                              \
     svfs_tracing(SVFS_INFO, svfs_##module##_tracing_flags,      \

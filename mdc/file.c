@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-23 21:49:47 macan>
+ * Time-stamp: <2009-06-26 17:48:15 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -217,6 +217,7 @@ out:
     return ret;
 }
 
+static
 loff_t svfs_file_llseek(struct file *file, loff_t offset, int origin)
 {
 	loff_t n;
@@ -228,12 +229,48 @@ loff_t svfs_file_llseek(struct file *file, loff_t offset, int origin)
 	return n;
 }
 
+static 
+int svfs_file_mmap(struct file *file, struct vm_area_struct *vma)
+{
+    struct address_space *mapping = file->f_mapping;
+    struct address_space *llfs_mapping;
+    struct inode *inode = mapping->host;
+    struct file *llfs_filp;
+    int ret;
+
+    ret = -EINVAL;
+    if (!(SVFS_I(inode)->state & SVFS_STATE_CONN)) {
+        /* open it? */
+        ret = llfs_lookup(inode);
+        if (ret)
+            goto out;
+    }
+    llfs_filp = SVFS_I(inode)->llfs_md.llfs_filp;
+    llfs_mapping = llfs_filp->f_mapping;
+    
+    file_accessed(file);
+    /* DANGEOUS: redirect to llfs file ? */
+    vma->vm_file = llfs_filp;
+    
+    if (llfs_filp->f_op && llfs_filp->f_op->mmap)
+        ret = llfs_filp->f_op->mmap(llfs_filp, vma);
+    else
+        ret = -ENOEXEC;
+    if (!ret) {
+        fput(file);
+        get_file(llfs_filp);
+    }
+out:
+	return ret;
+}
+
 const struct file_operations svfs_file_operations = {
-    /* FIXME */
     .llseek = svfs_file_llseek,
     .open = generic_file_open,
     .aio_read = svfs_file_aio_read,
     .aio_write = svfs_file_aio_write,
+    .mmap = svfs_file_mmap,
+    .fsync = svfs_sync_file,
     .splice_read = generic_file_splice_read,
     .splice_write = generic_file_splice_write,
 };

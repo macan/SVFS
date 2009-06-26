@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-26 10:27:02 macan>
+ * Time-stamp: <2009-06-26 21:48:34 macan>
  *
  * Supporting SVFS superblock operations.
  *
@@ -266,14 +266,14 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
         inode->i_uid = 0;
         inode->i_gid = 0;
         inode->i_blocks = 8;
-        svfs_set_inode_flags(inode);
+        svfs_get_inode_flags(SVFS_I(inode));
 
         unlock_new_inode(inode);
 #ifdef SVFS_LOCAL_TEST
         svfs_backing_store_set_root(ssb);
 #endif        
-        svfs_debug(mdc, "root inode state I_NEW, ct=%d\n", 
-                   atomic_read(&inode->i_count));
+        svfs_debug(mdc, "root inode state I_NEW, ct=%d, i_flags 0x%x\n", 
+                   atomic_read(&inode->i_count), inode->i_flags);
     }
 
     err = -ENOMEM;
@@ -287,8 +287,8 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
     list_del_init(&sb->s_root->d_alias);
     spin_unlock(&dcache_lock);
 
-    svfs_debug(mdc, "root inode ct=%d\n",
-               atomic_read(&inode->i_count));
+    svfs_debug(mdc, "root inode ct=%d, i_flags 0x%x\n",
+               atomic_read(&inode->i_count), inode->i_flags);
     svfs_info(mdc, "DUMP root dentry:\n"
               ".d_count %d, " ".d_flags 0x%x, .d_inode %p, \n"
               ".d_parent %p, .d_hash %p, .d_lru %d, .d_sb %p, \n"

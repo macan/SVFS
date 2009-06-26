@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-26 10:13:32 macan>
+ * Time-stamp: <2009-06-26 21:37:01 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -82,6 +82,23 @@ out:
     return retval;
 }
 
+static int svfs_delete_entry(struct inode *dir ,struct dentry *dentry)
+{
+    struct super_block *sb = dir->i_sb;
+    struct inode *inode = dentry->d_inode;
+    int ret;
+
+#ifdef SVFS_LOCAL_TEST
+    ret = svfs_backing_store_delete(SVFS_SB(sb), dir->i_ino, inode->i_ino,
+                                    dentry->d_name.name);
+    if (ret) {
+        svfs_debug(mdc, "delete entry '%s' failed with %d\n",
+                   dentry->d_name.name, ret);
+    }
+#endif
+    return ret;
+}
+
 static int svfs_add_nondir(struct dentry *dentry, struct inode *inode)
 {
     int err = svfs_add_entry(dentry, inode);
@@ -102,6 +119,8 @@ static int svfs_create(struct inode *dir, struct dentry *dentry, int mode,
     struct inode *inode;
     int err;
 
+    svfs_debug(mdc, "begin create a new entry %s\n",
+               dentry->d_name.name);
     /* TODO: redirect the request to ext4 file system */
     inode = svfs_new_inode(dir, mode);
     err = PTR_ERR(inode);
@@ -126,12 +145,14 @@ unsigned long svfs_find_entry(struct dentry *dentry)
     unsigned long ino = -1UL;
 
     sb = dir->i_sb;
+    if (IS_SVFS_VERBOSE(mdc))
+        dump_stack();
 #ifdef SVFS_LOCAL_TEST
     ino = svfs_backing_store_lookup(SVFS_SB(sb), dir->i_ino, 
                                     dentry->d_name.name);
     if (ino == -1UL) {
         svfs_warning(mdc, "svfs_find_dentry can not find the entry %s\n",
-            dentry->d_name.name);
+                     dentry->d_name.name);
         goto out;
     } else {
         svfs_info(mdc, "svfs_find_dentry find the entry %s @ %ld\n",
@@ -234,12 +255,12 @@ fail_lookup:
 static int svfs_link(struct dentry *old_dentry, struct inode *dir,
                      struct dentry *dentry)
 {
+    svfs_debug(mdc, "link not implemented.\n");
     return -ENOSYS;
 }
 
 static int svfs_unlink(struct inode *dir, struct dentry *dentry)
 {
-    struct super_block *sb = dir->i_sb;
     struct inode *inode = dentry->d_inode;
     struct file *llfs_filp;
     unsigned long ino = -1UL;
@@ -280,34 +301,26 @@ out_free:
         goto out;
 
 bypass:
-#ifdef SVFS_LOCAL_TEST
-    ret = -EINVAL;
-    ino = svfs_backing_store_lookup(SVFS_SB(sb), dir->i_ino,
-                                    dentry->d_name.name);
+    ret = -ENOENT;
+    ino = svfs_find_entry(dentry);
     if (ino == -1UL) {
-        svfs_warning(mdc, "can not find the entry %s\n",
-                     dentry->d_name.name);
+        svfs_warning(mdc, "Already unlink the LLFS dentry! "
+                     "Consistency gone\n");
         goto out;
-    } else {
-        svfs_info(mdc, "find the entry %s @ %ld\n",
-                  dentry->d_name.name, ino);
     }
-#endif
+
     ASSERT(inode);
     if (!inode->i_nlink) {
         svfs_warning(mdc, "svfs_unlink deleting nonexistent file "
-                     "(%lu), %d", inode->i_ino, inode->i_nlink);
+                     "(%lu), %d\n", inode->i_ino, inode->i_nlink);
         inode->i_nlink = 1;
     }
-#ifdef SVFS_LOCAL_TEST
-    /* delete the entry in backing store */
-    ret = -EINVAL;
-    ret = svfs_backing_store_delete(SVFS_SB(sb), dir->i_ino, ino, 
-                                    dentry->d_name.name);
-    if (ret) {
+
+    /* delete the entry */
+    ret = svfs_delete_entry(dir, dentry);
+    if (ret)
         goto out;
-    }
-#endif
+
     dir->i_ctime = dir->i_mtime = CURRENT_TIME;
     svfs_mark_inode_dirty(dir);
     drop_nlink(inode);
@@ -324,6 +337,7 @@ out:
 static int svfs_symlink(struct inode *dir, struct dentry *dentry, 
                         const char *symname)
 {
+    svfs_debug(mdc, "symlink not implemented.\n");
     return -ENOSYS;
 }
 
@@ -348,7 +362,7 @@ static int svfs_mkdir(struct inode *dir, struct dentry *dentry,
         inc_nlink(dir);
         svfs_mark_inode_dirty(dir);
     } else {
-        drop_nlink(inode);
+        clear_nlink(inode);
         iput(inode);
     }
 
@@ -359,25 +373,78 @@ out:
     return err;
 }
 
+static int empty_dir(struct inode *inode)
+{
+    int ret = 0;
+    
+    /* find if there are any dentrys in this inode */
+#ifdef SVFS_LOCAL_TEST
+    unsigned long ino;
+    ino = svfs_backing_store_find_child(SVFS_SB(inode->i_sb), inode->i_ino,
+                                        0);
+    if (ino == -1ULL)
+        ret = 1;
+    else 
+        ret = 0;
+#endif
+    return ret;
+}
+
 static int svfs_rmdir(struct inode *dir, struct dentry *dentry)
 {
-    return -ENOSYS;
+    struct inode *inode;
+    unsigned long ino = -1ULL;
+    int ret;
+
+    ret = -ENOENT;
+    ino = svfs_find_entry(dentry);
+    if (ino == -1ULL) {
+        goto end_rmdir;
+    }
+
+    inode = dentry->d_inode;
+    ret = -ENOTEMPTY;
+    if (!empty_dir(inode))
+        goto end_rmdir;
+
+    ret = svfs_delete_entry(dir, dentry);
+    if (ret)
+        goto end_rmdir;
+    
+    if (!(inode->i_nlink == 1 || inode->i_nlink == 2)) {
+        svfs_warning(mdc, "svfs_rmdir empty dir has too many links "
+                     "(%lu), %d\n", inode->i_ino, inode->i_nlink);
+    }
+    inode->i_version++;
+    clear_nlink(inode);
+    inode->i_size = 0;
+    inode->i_ctime = dir->i_ctime = dir->i_mtime = CURRENT_TIME;
+    svfs_mark_inode_dirty(inode);
+    drop_nlink(dir);
+    svfs_mark_inode_dirty(dir);
+    ret = 0;
+    
+end_rmdir:
+    return ret;
 }
 
 static int svfs_mknod(struct inode *dir, struct dentry *dentry,
                       int mode, dev_t rdev)
 {
+    svfs_debug(mdc, "mknod not implemented.\n");
     return -ENOSYS;
 }
 
 static int svfs_rename(struct inode *old_dir, struct dentry *old_dentry,
                        struct inode *new_dir, struct dentry *new_dentry)
 {
+    svfs_debug(mdc, "rename not implemented.\n");
     return -ENOSYS;
 }
 
 static int svfs_setattr(struct dentry *dentry, struct iattr *attr)
 {
+    svfs_debug(mdc, "setattr not implemented.\n");
     return -ENOSYS;
 }
 

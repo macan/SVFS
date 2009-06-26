@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-10 14:57:48 macan>
+ * Time-stamp: <2009-06-26 21:18:47 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,5 +24,22 @@
 
 int svfs_sync_file(struct file *file, struct dentry *dentry, int datasync)
 {
-    return -ENOTSUPP;
+    struct inode *inode = dentry->d_inode;
+    int ret = 0;
+    
+    svfs_debug(mdc, "sync inode %ld, datasync %d\n", inode->i_ino,
+               datasync);
+
+    if (datasync && !(inode->i_state & I_DIRTY_DATASYNC))
+		goto out;
+
+    if (inode->i_state & (I_DIRTY_SYNC | I_DIRTY_DATASYNC)) {
+		struct writeback_control wbc = {
+			.sync_mode = WB_SYNC_ALL,
+			.nr_to_write = 0, /* sys_fsync did this */
+		};
+		ret = sync_inode(inode, &wbc);
+	}
+out:
+    return ret;
 }

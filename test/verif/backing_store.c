@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-24 17:23:44 macan>
+ * Time-stamp: <2009-06-26 15:28:33 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -335,8 +335,11 @@ int svfs_backing_store_get_path(struct svfs_super_block *ssb,
     }
 
     p = buf;
+    snprintf(buf, len, "/");
+    p++;
+    len--;
     while (depth < bse->depth) {
-        bp = snprintf(p, len, "/%s", cursor[depth++]);
+        bp = snprintf(p, len, ".%s", cursor[depth++]);
         p += bp;
         len -= bp;
     }

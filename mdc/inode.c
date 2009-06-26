@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-22 20:09:30 macan>
+ * Time-stamp: <2009-06-26 21:36:07 macan>
  *
  * inode.c for SVFS
  *
@@ -55,7 +55,8 @@ int svfs_mark_inode_dirty(struct inode *inode)
 {
     struct svfs_inode *si = SVFS_I(inode);
 
-    dump_stack();
+    if (IS_SVFS_VERBOSE(mdc))
+        dump_stack();
     svfs_debug(mdc, "dirty inode %ld\n", inode->i_ino);
     /* TODO: dirty the disk structure to write */
 #ifdef SVFS_LOCAL_TEST
@@ -158,7 +159,7 @@ void svfs_set_inode_flags(struct inode *inode)
         inode->i_flags |= S_IMMUTABLE;
     if (flags & SVFS_IF_NOATIME)
         inode->i_flags |= S_NOATIME;
-    if (flags & SVFS_IF_DIRSYNC)
+    if ((flags & SVFS_IF_DIRSYNC) && S_ISDIR(inode->i_mode))
         inode->i_flags |= S_DIRSYNC;
 }
 
