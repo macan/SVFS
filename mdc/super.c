@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-22 11:12:24 macan>
+ * Time-stamp: <2009-06-26 10:27:02 macan>
  *
  * Supporting SVFS superblock operations.
  *
@@ -254,7 +254,7 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
         
         inode->i_ino = SVFS_ROOT_INODE;
         inode->i_flags = S_NOATIME | S_NOCMTIME;
-        inode->i_mode = S_IFDIR;
+        inode->i_mode = S_IFDIR | S_IRUGO | S_IXUGO | S_IWUSR;
         inode->i_op = &svfs_dir_inode_operations;
         inode->i_fop = &svfs_dir_operations;
 
@@ -266,6 +266,7 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
         inode->i_uid = 0;
         inode->i_gid = 0;
         inode->i_blocks = 8;
+        svfs_set_inode_flags(inode);
 
         unlock_new_inode(inode);
 #ifdef SVFS_LOCAL_TEST

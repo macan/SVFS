@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-25 14:05:31 macan>
+ * Time-stamp: <2009-06-26 10:13:32 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -67,7 +67,7 @@ static int svfs_add_entry(struct dentry *dentry, struct inode *inode)
              si->llfs_md.llfs_pathname);
     svfs_debug(mdc, "New LLFS path %s, state 0x%x\n", ref_path, si->state);
     llfs_file = filp_open(ref_path, O_RDWR | O_CREAT, 
-                          S_IRUSR | S_IWUSR | S);
+                          S_IRUGO | S_IWUSR);
     retval = PTR_ERR(llfs_file);
     if (IS_ERR(llfs_file))
         goto out_putname;
@@ -114,6 +114,8 @@ static int svfs_create(struct inode *dir, struct dentry *dentry, int mode,
 
     svfs_debug(mdc, "create a new entry %s(%ld) in %ld with %d\n",
                dentry->d_name.name, inode->i_ino, dir->i_ino, err);
+    svfs_debug(mdc, "mode 0x%x, flags 0x%x\n", 
+               inode->i_mode, inode->i_flags);
     return err;
 }
 
