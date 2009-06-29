@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-26 15:28:33 macan>
+ * Time-stamp: <2009-06-29 16:18:44 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -208,15 +208,30 @@ int svfs_backing_store_update_bse(struct svfs_super_block *ssb,
     bse->state &= ~SVFS_BS_NEW;
     sprintf(bse->relative_path, "%s", dentry->d_name.name);
     /* FIXME: setting up the entry automatically */
-    sprintf(bse->ref_path, "ino_%ld", inode->i_ino);
+    if (!S_ISLNK(inode->i_mode))
+        sprintf(bse->ref_path, "ino_%ld", inode->i_ino);
     bse->state |= SVFS_BS_VALID;
 
-    svfs_info(mdc, "Update the bse %ld: po %d, state 0x%x, "
-              "rel path %s, ref path %s, depth %d\n", inode->i_ino, 
-              bse->parent_offset,
-              bse->state, bse->relative_path, bse->ref_path, bse->depth);
+    svfs_debug(mdc, "Update the bse %ld: po %d, state 0x%x, "
+               "rel path %s, ref path %s, depth %d\n", inode->i_ino, 
+               bse->parent_offset,
+               bse->state, bse->relative_path, bse->ref_path, bse->depth);
 
     return 0;
+}
+
+/* is this inode out-of-date? */
+int svfs_backing_store_is_ood(struct inode *inode)
+{
+    struct super_block *sb = inode->i_sb;
+    struct backing_store_entry *bse = SVFS_SB(sb)->bse + inode->i_ino;
+
+    if (bse->state & SVFS_BS_DELETING ||
+        bse->state & SVFS_BS_DIRTY ||
+        bse->state & SVFS_BS_NEW)
+        return 1;
+    else
+        return 0;
 }
 
 void svfs_backing_store_commit_bse(struct inode *inode)
@@ -293,7 +308,7 @@ unsigned long svfs_backing_store_find_mark_ino(struct svfs_super_block *ssb)
     if (ino >= ssb->bs_size) {
         ino = -1UL;
     }
-    svfs_info(mdc, "find new bse %ld\n", ino);
+    svfs_debug(mdc, "find new bse %ld\n", ino);
     return ino;
 }
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-26 21:48:34 macan>
+ * Time-stamp: <2009-06-27 13:51:23 macan>
  *
  * Supporting SVFS superblock operations.
  *
@@ -102,7 +102,7 @@ static struct inode *svfs_alloc_inode(struct super_block *sb)
 
 static void svfs_destroy_inode(struct inode *inode)
 {
-    svfs_debug(mdc, "destroy svfs_inode: %p CONN 0x%x\n", 
+    svfs_entry(mdc, "destroy svfs_inode: %p CONN 0x%x\n", 
                SVFS_I(inode),
                (SVFS_I(inode)->state & SVFS_STATE_CONN));
     /* TODO: free the info in svfs_inode? */
@@ -146,7 +146,10 @@ static int svfs_sync_fs(struct super_block *sb, int wait)
 {
     sb->s_dirt = 0;
     /* TODO: commit the dirty contents? */
-    svfs_debug(mdc, "svfs sync fs now, wait %d\n", wait);
+    svfs_debug(mdc, "svfs sync fs now, wait %d, s_io %d, s_dirty %d\n", 
+               wait, list_empty(&sb->s_io), list_empty(&sb->s_dirty));
+    if (IS_SVFS_VERBOSE(mdc))
+        dump_stack();
     return 0;
 }
 
@@ -171,7 +174,7 @@ static int svfs_remount_fs(struct super_block *sb, int *flags, char *data)
 static void svfs_clear_inode(struct inode *inode)
 {
     /* TODO: release the inode @ MDS */
-    svfs_debug(mdc, "svfs clear inode %ld\n", inode->i_ino);
+    svfs_entry(mdc, "svfs clear inode %ld\n", inode->i_ino);
 
     svfs_write_inode(inode, 1);
     return;
@@ -421,7 +424,7 @@ void svfs_kill_super(struct super_block *s)
             svfs_debug(mdc, "Write %d bytes to backing_store %s\n",
                        (int)bw, ssb->backing_store);
         else
-            svfs_info(mdc, "Write to backing store failed, err %d\n",
+            svfs_err(mdc, "Write to backing store failed, err %d\n",
                       (int)bw);
     }
     __putname(ssb->backing_store);

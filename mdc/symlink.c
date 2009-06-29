@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-27 13:56:44 macan>
+ * Time-stamp: <2009-06-29 16:14:37 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,11 +20,20 @@
  *
  */
 
-#include "mdc.h"
 #include "svfs.h"
 
-/* providing mdc_tracing_flags */
-unsigned int svfs_mdc_tracing_flags = SVFS_DEFAULT_LEVEL;
+static void *svfs_follow_link(struct dentry *dentry, struct nameidata *nd)
+{
+#ifdef SVFS_LOCAL_TEST
+    struct super_block *sb = dentry->d_inode->i_sb;
+    struct backing_store_entry *bse = SVFS_SB(sb)->bse + 
+        dentry->d_inode->i_ino;
+    nd_set_link(nd, (char *)bse->ref_path);
+#endif
+    return NULL;
+}
 
-/* providing dstore_tracing_flags */
-unsigned int svfs_dstore_tracing_flags = SVFS_DEFAULT_LEVEL;
+const struct inode_operations svfs_fast_symlink_inode_operations = {
+    .readlink = generic_readlink,
+    .follow_link = svfs_follow_link,
+};

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-18 14:09:28 macan>
+ * Time-stamp: <2009-06-29 16:08:49 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,5 +35,20 @@ struct dentry *svfs_relay_ext4_lookup(struct inode *inode)
               si->llfs_md.llfs_pathname);
     return NULL;
 }
-
+struct dentry *svfs_relay_ext3_lookup(struct inode *inode)
+{
+    struct svfs_inode *si = SVFS_I(inode);
+    
+    svfs_info(mdc, "relay lookup for ext3, path %s\n",
+              si->llfs_md.llfs_pathname);
+    return NULL;
+}
+struct dentry *svfs_relay_nfs4_lookup(struct inode *inode)
+{
+    struct svfs_inode *si = SVFS_I(inode);
+    
+    svfs_info(mdc, "relay lookup for nfs4, path %s\n",
+              si->llfs_md.llfs_pathname);
+    return NULL;
+}
 

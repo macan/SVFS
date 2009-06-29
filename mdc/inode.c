@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-26 21:36:07 macan>
+ * Time-stamp: <2009-06-29 17:14:04 macan>
  *
  * inode.c for SVFS
  *
@@ -32,19 +32,18 @@ int svfs_force_commit(struct super_block *sb)
 
 int svfs_write_inode(struct inode *inode, int wait)
 {
+    svfs_entry(mdc, "svfs write inode %ld(0x%lx) now, wait %d\n",
+               inode->i_ino, inode->i_state, wait);
+
     if (current->flags & PF_MEMALLOC)
         return 0;
 
-    if (!wait)
-        return 0;
-
-    svfs_debug(mdc, "svfs write inode %ld(0x%lx) now, wait %d\n",
-               inode->i_ino, inode->i_state, wait);
-
+    /* FIXME: should we do sth. to wait? I do not know */
 #ifdef SVFS_LOCAL_TEST
     /* FIXME: write the path to bse ? */
     {
-        svfs_backing_store_commit_bse(inode);
+        if (svfs_backing_store_is_ood(inode))
+            svfs_backing_store_commit_bse(inode);
     }
 #endif
 
@@ -55,9 +54,9 @@ int svfs_mark_inode_dirty(struct inode *inode)
 {
     struct svfs_inode *si = SVFS_I(inode);
 
+    svfs_entry(mdc, "dirty inode %ld\n", inode->i_ino);
     if (IS_SVFS_VERBOSE(mdc))
         dump_stack();
-    svfs_debug(mdc, "dirty inode %ld\n", inode->i_ino);
     /* TODO: dirty the disk structure to write */
 #ifdef SVFS_LOCAL_TEST
     /* FIXME: setting the internal flags? */
@@ -78,6 +77,7 @@ int svfs_mark_inode_dirty(struct inode *inode)
 
 void svfs_dirty_inode(struct inode *inode)
 {
+    svfs_entry(mdc, "i_state 0x%lx\n", inode->i_state);
     svfs_mark_inode_dirty(inode);
 }
 
@@ -101,14 +101,12 @@ void svfs_truncate(struct inode *inode)
             return;
     }
     /* shall we relay the request to LLFS? */
-    if (si->disksize > inode->i_size) {
-        ret = vmtruncate(si->llfs_md.llfs_filp->f_dentry->d_inode, 
-                         inode->i_size);
-        if (ret)
-            return;
-    }
-    svfs_debug(mdc, "relay the truncate to LLFS, ino %ld, size %lu\n",
-               inode->i_ino, (unsigned long)inode->i_size);
+    ret = vmtruncate(si->llfs_md.llfs_filp->f_dentry->d_inode, 
+                     inode->i_size);
+
+    svfs_debug(mdc, "relay the truncate to LLFS, ino %ld, size %lu, "
+               "ret %d\n",
+               inode->i_ino, (unsigned long)inode->i_size, ret);
     return;
 }
 
@@ -116,7 +114,7 @@ void svfs_delete_inode(struct inode *inode)
 {
     int err;
 
-    svfs_debug(mdc, "svfs delete inode, si %p\n", SVFS_I(inode));
+    svfs_entry(mdc, "svfs delete inode, si %p\n", SVFS_I(inode));
    /* TODO: truncate the inode pagecache */
     truncate_inode_pages(&inode->i_data, 0);
 
@@ -235,7 +233,8 @@ static int svfs_bs_readpage(struct file *file, struct page *page)
     return -ENOSYS;
 }
 
-static int svfs_bs_readpages(struct file *file, struct address_space *mapping,
+static int svfs_bs_readpages(struct file *file, 
+                             struct address_space *mapping,
                              struct list_head *pages, unsigned nr_pages)
 {
     return -ENOSYS;
@@ -244,23 +243,35 @@ static int svfs_bs_readpages(struct file *file, struct address_space *mapping,
 static int svfs_bs_writepage(struct page *page,
                              struct writeback_control *wbc)
 {
-    return -ENOSYS;
+    struct inode *inode = page->mapping->host;
+
+    svfs_entry(mdc, "write dirty inode %ld, i_state 0x%lx\n", inode->i_ino,
+               inode->i_state);
+    return 0;
 }
 
 static int svfs_bs_writepages(struct address_space *mapping,
                               struct writeback_control *wbc)
 {
-    return -ENOSYS;
+    struct inode *inode = mapping->host;
+    
+    svfs_entry(mdc, "write dirty inode %ld, i_state 0x%lx\n", inode->i_ino,
+               inode->i_state);
+    if (IS_SVFS_VERBOSE(mdc))
+        dump_stack();
+    return 0;
 }
 
-static int svfs_bs_write_begin(struct file *file, struct address_space *mapping,
+static int svfs_bs_write_begin(struct file *file, 
+                               struct address_space *mapping,
                                loff_t pos, unsigned len, unsigned flags,
                                struct page **pagep, void **fsdata)
 {
     return -ENOSYS;
 }
 
-static int svfs_bs_write_end(struct file *file, struct address_space *mapping,
+static int svfs_bs_write_end(struct file *file, 
+                             struct address_space *mapping,
                              loff_t pos, unsigned len, unsigned copied,
                              struct page *page, void *fsdata)
 {
@@ -307,7 +318,10 @@ static const struct address_space_operations svfs_aops = {
 void svfs_set_aops(struct inode *inode)
 {
     struct svfs_super_block *ssb = SVFS_SB(inode->i_sb);
-    
+
+    svfs_entry(mdc, "set aops as '%s'\n", 
+               (ssb->flags & SVFS_SB_LOCAL_TEST) ? 
+               "svfs_bs_aops" : "svfs_aops");
 #ifdef SVFS_LOCAL_TEST
     if (ssb->flags & SVFS_SB_LOCAL_TEST)
         inode->i_mapping->a_ops = &svfs_bs_aops;
@@ -321,7 +335,7 @@ struct inode *svfs_iget(struct super_block *sb, unsigned long ino)
     struct inode *inode;
     struct svfs_inode *si;
 
-    svfs_debug(mdc, "iget inode %ld\n", ino);
+    svfs_entry(mdc, "iget inode %ld\n", ino);
 
     inode = iget_locked(sb, ino);
     if (!inode)
@@ -375,7 +389,7 @@ struct inode *svfs_iget(struct super_block *sb, unsigned long ino)
             svfs_set_aops(inode);
         } else if (S_ISLNK(inode->i_mode)){
             ASSERT(bse->state & SVFS_BS_LINK);
-            /* FIXME: symlink operations */
+            inode->i_op = &svfs_fast_symlink_inode_operations;
         } else {
             /* FIXME: special operations */
         }

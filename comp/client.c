@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-19 11:37:25 macan>
+ * Time-stamp: <2009-06-29 15:55:21 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -52,6 +52,12 @@ MODULE_PARM_DESC(svfs_targeting_store,
                  "SVFS Targeting Store: pathname");
 #endif
 
+/* config file path */
+char *svfs_conf_filename = "/etc/svfs_config";
+module_param(svfs_conf_filename, charp, S_IRUGO);
+MODULE_PARM_DESC(svfs_conf_filename,
+                 "SVFS Config File Path: full pathname");
+
 MODULE_AUTHOR("Ma Can <macan@ncic.ac.cn>");
 MODULE_DESCRIPTION("SVFS Client");
 MODULE_LICENSE("Dual BSD/GPL");
@@ -98,7 +104,6 @@ static struct file_system_type svfs_fs_type = {
 static int __init init_svfs(void)
 {
     int err;
-    struct svfs_datastore *sd;
 
     printk(KERN_INFO "%s: %s\n"
               "Compiled at %s @ %s\n", 
@@ -113,12 +118,14 @@ static int __init init_svfs(void)
     printk(KERN_INFO "svfs_backing_store %s\n", 
            svfs_backing_store);
 #endif
+    printk(KERN_INFO "svfs_conf_filename %s\n",
+           svfs_conf_filename);
 
     svfs_datastore_init();
-    sd = svfs_datastore_add_new(LLFS_TYPE_EXT4, "/mnt/nfs");
-    err = PTR_ERR(sd);
+
+    err = svfs_datastore_adding(svfs_conf_filename);
     if (err)
-        return err;
+        goto out;
 
     err = init_inodecache();
     if (err)
@@ -127,6 +134,16 @@ static int __init init_svfs(void)
     err = register_filesystem(&svfs_fs_type);
     if (err)
         goto out1;
+
+    if (!svfs_lib_proc_init()) {
+        svfs_err(client, "svfs: init root proc entry failed\n");
+    }
+
+    /* init tracing flags now */
+    SVFS_LIB_TRACING_ADD(svfs_client_tracing_flags);
+    SVFS_LIB_TRACING_ADD(svfs_mdc_tracing_flags);
+    SVFS_LIB_TRACING_ADD(svfs_dstore_tracing_flags);
+    SVFS_LIB_TRACING_ADD(svfs_lib_tracing_flags);
 
     return 0;
 out1:
@@ -138,6 +155,8 @@ out:
 
 static void __exit exit_svfs(void)
 {
+    svfs_lib_tracing_exit();
+    svfs_lib_proc_exit();
     unregister_filesystem(&svfs_fs_type);
     destroy_inodecache();
     svfs_datastore_exit();

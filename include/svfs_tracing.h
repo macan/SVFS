@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-16 08:54:07 macan>
+ * Time-stamp: <2009-06-29 15:56:59 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 #define __SVFS_TRACING_H__
 
 #include "../mdc/mdc.h"
+#include "../lib/lib.h"
 
 #ifdef SVFS_ASSERT
 #define ASSERT(expr)                            \
@@ -35,5 +36,12 @@
 #else
 #define ASSERT(expr)
 #endif
+
+struct tracing_flag
+{
+    char name[64];
+    unsigned int *loc;
+    struct list_head list;
+};
 
 #endif

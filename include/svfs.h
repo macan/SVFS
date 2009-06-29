@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-26 15:13:00 macan>
+ * Time-stamp: <2009-06-29 16:08:31 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -53,6 +53,9 @@
 #include <linux/namei.h>
 #include <linux/fsnotify.h>
 #include <linux/writeback.h>
+#include <linux/proc_fs.h>
+#include <linux/wait.h>
+#include <linux/seq_file.h>
 
 /* svfs inode structures */
 #include "svfs_i.h"
@@ -65,17 +68,22 @@
 #define SVFS_INFO    0x80000000
 #define SVFS_WARNING 0x40000000
 #define SVFS_ERR     0x20000000
+
+#define SVFS_ENTRY   0x00000008
 #define SVFS_VERBOSE 0x00000004 /* more infos than debug mode */
 #define SVFS_PRECISE 0x00000002
 #define SVFS_DEBUG   0x00000001
 
+#define SVFS_DEFAULT_LEVEL 0xf0000000
+#define SVFS_DEBUG_ALL     0x0000000f
+
 #define svfs_tracing(mask, flag, lvl, f, a...) do {     \
         if (mask & flag) {                              \
             if (mask & SVFS_PRECISE) {                  \
-                printk(lvl "SVFS (%s, %d): %s:",        \
+                printk(lvl "SVFS (%s, %d): %s: ",       \
                        __FILE__, __LINE__, __func__);   \
             }                                           \
-            printk(lvl f, ## a);                        \
+            printk(f, ## a);                            \
         }                                               \
     } while (0)
 
@@ -105,6 +113,11 @@
     svfs_tracing((SVFS_DEBUG | SVFS_PRECISE),   \
                  svfs_##module##_tracing_flags, \
                  KERN_DEBUG, f, ## a)
+
+#define svfs_entry(module, f, a...)             \
+    svfs_tracing((SVFS_ENTRY | SVFS_PRECISE),   \
+                 svfs_##module##_tracing_flags, \
+                 KERN_DEBUG, "entry: " f, ## a)
 
 #define svfs_warning(module, f, a...)           \
     svfs_tracing((SVFS_WARNING | SVFS_PRECISE), \
@@ -152,6 +165,34 @@ extern struct svfs_datastore *svfs_datastore_add_new(int, char *);
 extern void svfs_datastore_free(struct svfs_datastore *);
 extern void svfs_datastore_exit(void);
 extern struct svfs_datastore *svfs_datastore_get(int type);
+extern int svfs_datastore_adding(char *);
+/* APIs for symlink.c */
+extern const struct inode_operations svfs_fast_symlink_inode_operations;
+/* APIs for lib/config.c */
+extern void svfs_lib_test(void);
+extern int svfs_lib_get_value(char *, char *, char *, int);
+extern int svfs_lib_k2v(char *, char *, char *);
+extern int svfs_lib_config_readline(char *, size_t);
+extern int svfs_lib_config_open(char *);
+extern void svfs_lib_config_close(void);
+/* APIs for lib/proc.c */
+extern void svfs_lib_proc_test(void);
+extern struct proc_dir_entry *svfs_lib_proc_init(void);
+extern void svfs_lib_proc_exit(void);
+extern int svfs_lib_proc_add_entry(struct proc_dir_entry *, char *, 
+                                   const struct file_operations *);
+extern void svfs_lib_proc_remove_entry(struct proc_dir_entry *, char *);
+extern struct proc_dir_entry *svfs_lib_proc_add_dir(
+    struct proc_dir_entry *, char *);
+/* APIs for lib/tracing.c */
+extern void svfs_lib_tracing_exit(void);
+extern int svfs_lib_tracing_add(char *, unsigned int *);
+#define SVFS_LIB_TRACING_ADD(name) do {                                 \
+        int err = svfs_lib_tracing_add(#name, &name);                   \
+        if (err) {                                                      \
+            svfs_err(lib, "adding tracing flag %s failed\n", #name);    \
+        }                                                               \
+    } while (0)
 
 /* Include all the tracing flags */
 #include "svfs_tracing.h"
@@ -181,6 +222,7 @@ extern unsigned long svfs_backing_store_find_child(
 extern int svfs_backing_store_delete(struct svfs_super_block *,
                                      unsigned long, unsigned long,
                                      const char *);
+extern int svfs_backing_store_is_ood(struct inode *);
 #endif
 
 /* relay operations */
@@ -189,6 +231,12 @@ extern int svfs_backing_store_delete(struct svfs_super_block *,
             switch (type) {                             \
             case LLFS_TYPE_EXT4:                        \
                 retval = svfs_relay_ext4_##name(inode); \
+                break;                                  \
+            case LLFS_TYPE_EXT3:                        \
+                retval = svfs_relay_ext3_##name(inode); \
+                break;                                  \
+            case LLFS_TYPE_NFS4:                        \
+                retval = svfs_relay_nfs4_##name(inode); \
                 break;                                  \
             default:                                    \
                 retval = ERR_PTR(-EINVAL);              \
@@ -200,5 +248,7 @@ extern int svfs_backing_store_delete(struct svfs_super_block *,
     ret svfs_relay_##type##_##name(args)
 
 svfs_relay_define(lookup, ext4, struct dentry *, struct inode *);
+svfs_relay_define(lookup, ext3, struct dentry *, struct inode *);
+svfs_relay_define(lookup, nfs4, struct dentry *, struct inode *);
 
 #endif

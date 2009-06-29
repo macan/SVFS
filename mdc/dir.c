@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-20 10:11:45 macan>
+ * Time-stamp: <2009-06-27 13:54:52 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@ static int svfs_readdir(struct file *filp, void *dirent, filldir_t filldir)
     sb = inode->i_sb;
     offset = filp->f_pos;
 
-    svfs_debug(mdc, "find from offset %ld\n", offset);
+    svfs_entry(mdc, "find from offset %ld\n", offset);
 
     while (offset < SVFS_SB(sb)->bs_size) {
 #ifdef SVFS_LOCAL_TEST

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-19 09:35:58 macan>
+ * Time-stamp: <2009-06-29 10:33:48 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,45 +31,49 @@ void svfs_datastore_init()
     INIT_LIST_HEAD(&svfs_datastore_list);
 }
 
-#define svfs_get_iops(type, target) ({                      \
-            struct inode_operations *iops = NULL;           \
-            switch (type) {                                 \
-            case LLFS_TYPE_EXT4:                            \
-                iops = ext4_##target##_inode_operations;    \
-                break;                                      \
-            case LLFS_TYPE_EXT3:                            \
-                iops = ext3_##target##_inode_operations;    \
-                break;                                      \
-            default:                                        \
-                ;                                           \
-            }                                               \
-            iops;                                           \
-        })
+int svfs_datastore_adding(char *conf_filename)
+{
+    char line[256];
+    char type[12], pathname[128];
+    struct svfs_datastore *sd;
+    int ret, flag = 1, rc = -EINVAL;
 
-#define svfs_get_fops(type, target) ({                      \
-            struct file_operations *fops = NULL;            \
-            switch (type) {                                 \
-            case LLFS_TYPE_EXT4:                            \
-                iops = ext4_##target##_operations;          \
-                break;                                      \
-            case LLFS_TYPE_EXT3:                            \
-                iops = ext3_##target##_operations;          \
-                break;                                      \
-            default:                                        \
-                ;                                           \
-            }                                               \
-            fops;                                           \
-        })
+    memset(line, 0, 256);
+    ret = svfs_lib_config_open(conf_filename);
+    if (ret) {
+        svfs_err(dstore, "open config file '%s' err %d\n", 
+                 conf_filename, ret);
+        return ret;
+    }
 
-#define svfs_get_ops(type, ops_type, target) ({                         \
-            void *ops;                                                  \
-            if (!strcmp("inode_operations", #ops_type)) {               \
-                ops = svfs_get_iops(type, target);                      \
-            } else if (!strcmp("file_operations", #ops_type)) {         \
-                ops = svfs_get_iops(type, target);                      \
-            }                                                           \
-            ops;                                                        \
-        })
+    while (1) {
+        ret = svfs_lib_get_value("datastore", "fstype", line, flag);
+        if (ret) {
+            break;
+        }
+        flag = 0;
+        ret = svfs_lib_k2v(line, "fstype", type);
+        if (ret < 0)
+            svfs_err(dstore, "k2v failed %d\n", ret);
+        else
+            svfs_err(dstore, "Got fstype value: %s\n", type);
+        
+        ret = svfs_lib_k2v(line, "mountpoint", pathname);
+        if (ret < 0)
+            svfs_err(dstore, "k2v failed %d\n", ret);
+        else
+            svfs_err(dstore, "Got mountpoint value: %s\n", pathname);
+        
+        sd = svfs_datastore_add_new(svfs_type_revert(type), pathname);
+        rc = PTR_ERR(sd);
+        if (IS_ERR(sd))
+            goto out;
+        rc = 0;
+    }
+    out:
+    svfs_lib_config_close();
+    return rc;
+}
 
 struct svfs_datastore *svfs_datastore_add_new(int type, char *pathname)
 {
@@ -80,6 +84,10 @@ struct svfs_datastore *svfs_datastore_add_new(int type, char *pathname)
     int err, found = 0;
 
     svfs_info(dstore, "add new type %s\n", svfs_type_convert(type));
+    /* pre-checking */
+    if (type == LLFS_TYPE_ERR)
+        return ERR_PTR(-EINVAL);
+    
     /* Step 1.1: lookup the pathname? */
     err = path_lookup(pathname, LOOKUP_FOLLOW, &nd);
     if (err)
@@ -99,8 +107,11 @@ struct svfs_datastore *svfs_datastore_add_new(int type, char *pathname)
     }
     svfs_info(dstore, "found %d\n", found);
     err = -EINVAL;
-    if (!found)
+    if (!found) {
+        svfs_info(mdc, "No '%s' filesystem found @ %s\n",
+                  svfs_type_convert(type), pathname);
         goto fail_drop;
+    }
     
     /* Step 2: alloc and init the datastore */
 

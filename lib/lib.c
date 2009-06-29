@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-27 13:56:44 macan>
+ * LIB.c for tracing flags
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,11 +20,7 @@
  *
  */
 
-#include "mdc.h"
 #include "svfs.h"
+#include "lib.h"
 
-/* providing mdc_tracing_flags */
-unsigned int svfs_mdc_tracing_flags = SVFS_DEFAULT_LEVEL;
-
-/* providing dstore_tracing_flags */
-unsigned int svfs_dstore_tracing_flags = SVFS_DEFAULT_LEVEL;
+unsigned int svfs_lib_tracing_flags = SVFS_DEBUG_ALL | SVFS_DEFAULT_LEVEL;

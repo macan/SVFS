@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-26 17:48:15 macan>
+ * Time-stamp: <2009-06-29 21:28:34 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -151,7 +151,7 @@ svfs_file_aio_write(struct kiocb *iocb, const struct iovec *iov,
     ssize_t ret = 0, bw;
     int seg;
 
-    svfs_debug(mdc, "entering, f_mode 0x%x, pos %lu, check 0x%x\n",
+    svfs_entry(mdc, "f_mode 0x%x, pos %lu, check 0x%x\n",
                filp->f_mode,
                (unsigned long)pos,
                (si->state & SVFS_STATE_CONN));
@@ -165,6 +165,10 @@ svfs_file_aio_write(struct kiocb *iocb, const struct iovec *iov,
     BUG_ON(iocb->ki_pos != pos);
     ASSERT(llfs_filp->f_dentry);
     ASSERT(llfs_filp->f_dentry->d_inode);
+
+    /* adjusting the offset */
+    if (filp->f_flags & O_APPEND)
+        pos = i_size_read(inode);
     
     llfs_filp = si->llfs_md.llfs_filp;
     llfs_filp->f_pos = pos;
@@ -206,10 +210,10 @@ svfs_file_aio_write(struct kiocb *iocb, const struct iovec *iov,
     /* should update the file info */
     file_update_time(filp);
     if (pos + ret > inode->i_size) {
-        svfs_info(mdc, "update with pos %lu count %ld, "
-                  "original i_size %lu\n",
-                  (unsigned long)pos, ret, 
-                  (unsigned long)inode->i_size);
+        svfs_debug(mdc, "update with pos %lu count %ld, "
+                   "original i_size %lu\n",
+                   (unsigned long)pos, ret, 
+                   (unsigned long)inode->i_size);
         i_size_write(inode, pos + ret);
         mark_inode_dirty(inode);
     }
@@ -221,7 +225,7 @@ static
 loff_t svfs_file_llseek(struct file *file, loff_t offset, int origin)
 {
 	loff_t n;
-    svfs_debug(mdc, "offset %ld, origin %d\n", 
+    svfs_entry(mdc, "offset %ld, origin %d\n", 
                (unsigned long)offset, origin);
 	mutex_lock(&file->f_dentry->d_inode->i_mutex);
 	n = generic_file_llseek_unlocked(file, offset, origin);

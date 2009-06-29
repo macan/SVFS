@@ -2,7 +2,7 @@
 # Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
 #                           <macan@ncic.ac.cn>
 #
-# Time-stamp: <2009-06-19 16:53:00 macan>
+# Time-stamp: <2009-06-29 15:59:23 macan>
 #
 # This is the makefile for SVFS module.
 #
@@ -27,18 +27,22 @@ EXTRA_CFLAGS += -Wall -O2
 MDC := mdc
 COMP := comp
 TEST := test
+LIB := lib
 
 ifneq ($(KERNELRELEASE),)
 
 obj-m := svfs_client.o
 mdc-objs += $(MDC)/super.o $(MDC)/inode.o $(MDC)/namei.o $(MDC)/fsync.o \
 			$(MDC)/dir.o $(MDC)/ialloc.o $(MDC)/mdc.o $(MDC)/buffer.o \
+			$(MDC)/symlink.o \
 			$(MDC)/file.o $(MDC)/relay.o $(MDC)/datastore.o
 backing_store-objs += $(TEST)/verif/backing_store.o
+lib-objs += $(LIB)/config.o $(LIB)/proc.o $(LIB)/lib.o $(LIB)/tracing.o
 
 svfs_client-objs += $(COMP)/client.o
 svfs_client-objs += $(mdc-objs)
 svfs_client-objs += $(backing_store-objs)
+svfs_client-objs += $(lib-objs)
 
 else
 
@@ -57,6 +61,7 @@ clean:
 	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions Module* modules.* .*.o.*
 	rm -rf $(MDC)/*.o $(MDC)/.*.cmd
 	rm -rf $(COMP)/*.o $(COMP)/.*.cmd
+	rm -rf $(LIB)/*.o $(LIB)/.*.cmd
 	rm -rf $(TEST)/verif/*.o $(TEST)/verif/.*.cmd
 
 depend .depend dep:

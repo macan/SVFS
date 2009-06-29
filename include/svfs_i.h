@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-24 17:27:51 macan>
+ * Time-stamp: <2009-06-29 11:26:22 macan>
  *
  * Define SVFS inodes
  *
@@ -93,13 +93,31 @@ struct svfs_referal
 #define LLFS_TYPE_FREE 0x00
 #define LLFS_TYPE_EXT4 0x01
 #define LLFS_TYPE_EXT3 0x02
+#define LLFS_TYPE_NFS  0x04
+#define LLFS_TYPE_NFS4 0x08
 #define LLFS_TYPE_ANY  0x80
+#define LLFS_TYPE_ERR  0x40
     u32 llfs_type;             /* llfs filesystem type */
     struct file *llfs_filp;
 
     char llfs_pathname[NAME_MAX];
 };
 
+static inline int svfs_type_revert(char *type)
+{
+    if (!strcmp(type, "ext4"))
+        return LLFS_TYPE_EXT4;
+    else if (!strcmp(type, "ext3"))
+        return LLFS_TYPE_EXT3;
+    else if (!strcmp(type, "nfs4"))
+        return LLFS_TYPE_NFS4;
+    else if (!strcmp(type, "nfs"))
+        return LLFS_TYPE_NFS;
+    else if (!strcmp(type, "anyfs"))
+        return LLFS_TYPE_ANY;
+    else
+        return LLFS_TYPE_ERR;
+}
 static inline char *svfs_type_convert(int type)
 {
     switch (type) {
@@ -107,6 +125,12 @@ static inline char *svfs_type_convert(int type)
         return "ext4";
     case LLFS_TYPE_EXT3:
         return "ext3";
+    case LLFS_TYPE_NFS4:
+        return "nfs4";
+    case LLFS_TYPE_NFS:
+        return "nfs";
+    case LLFS_TYPE_ANY:
+        return "anyfs";
     case LLFS_TYPE_FREE:
         return "nofs";
     default:

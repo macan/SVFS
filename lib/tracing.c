@@ -2,8 +2,6 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-27 13:56:44 macan>
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -20,11 +18,32 @@
  *
  */
 
-#include "mdc.h"
 #include "svfs.h"
 
-/* providing mdc_tracing_flags */
-unsigned int svfs_mdc_tracing_flags = SVFS_DEFAULT_LEVEL;
+static LIST_HEAD(svfs_tf_list);
 
-/* providing dstore_tracing_flags */
-unsigned int svfs_dstore_tracing_flags = SVFS_DEFAULT_LEVEL;
+void svfs_lib_tracing_exit(void)
+{
+    struct tracing_flag *pos, *n;
+    
+    list_for_each_entry_safe(pos, n, &svfs_tf_list, list) {
+        svfs_info(lib, "freeing tracing flag: %s\n", pos->name);
+        list_del(&pos->list);
+        kfree(pos);
+    }
+}
+
+int svfs_lib_tracing_add(char *name, unsigned int *loc)
+{
+    struct tracing_flag *tf;
+
+    tf = kmalloc(sizeof(struct tracing_flag), GFP_KERNEL);
+    if (!tf)
+        return -ENOMEM;
+    strncpy(tf->name, name, 63);
+    tf->loc = loc;
+    list_add_tail(&tf->list, &svfs_tf_list);
+
+    return 0;
+}
+

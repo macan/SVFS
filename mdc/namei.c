@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-26 21:37:01 macan>
+ * Time-stamp: <2009-06-29 16:15:33 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -119,7 +119,7 @@ static int svfs_create(struct inode *dir, struct dentry *dentry, int mode,
     struct inode *inode;
     int err;
 
-    svfs_debug(mdc, "begin create a new entry %s\n",
+    svfs_entry(mdc, "begin create a new entry %s\n",
                dentry->d_name.name);
     /* TODO: redirect the request to ext4 file system */
     inode = svfs_new_inode(dir, mode);
@@ -255,7 +255,7 @@ fail_lookup:
 static int svfs_link(struct dentry *old_dentry, struct inode *dir,
                      struct dentry *dentry)
 {
-    svfs_debug(mdc, "link not implemented.\n");
+    svfs_entry(mdc, "link not implemented.\n");
     return -ENOSYS;
 }
 
@@ -337,8 +337,38 @@ out:
 static int svfs_symlink(struct inode *dir, struct dentry *dentry, 
                         const char *symname)
 {
-    svfs_debug(mdc, "symlink not implemented.\n");
-    return -ENOSYS;
+    struct inode *inode;
+    int l, err;
+
+    l = strlen(symname) + 1;
+    if (l > dir->i_sb->s_blocksize)
+        return -ENAMETOOLONG;
+
+    inode = svfs_new_inode(dir, S_IFLNK | S_IRWXUGO);
+    err = PTR_ERR(inode);
+    if (IS_ERR(inode))
+        goto out_stop;
+
+#ifdef SVFS_LOCAL_TEST
+    {
+        struct super_block *sb = dir->i_sb;
+        struct backing_store_entry *bse = SVFS_SB(sb)->bse + inode->i_ino;
+        
+        if (l > sizeof(bse->ref_path)) {
+            /* could no filling in the metadata store */
+            err = -ENAMETOOLONG;
+            goto out_stop;
+        } else {
+            inode->i_op = &svfs_fast_symlink_inode_operations;
+            memcpy((char *)&(bse->ref_path), symname, l);
+            inode->i_size = l - 1;
+        }
+    }
+#endif
+    SVFS_I(inode)->disksize = inode->i_size;
+    err = svfs_add_nondir(dentry, inode);
+out_stop:
+    return err;
 }
 
 static int svfs_mkdir(struct inode *dir, struct dentry *dentry,
@@ -431,21 +461,49 @@ end_rmdir:
 static int svfs_mknod(struct inode *dir, struct dentry *dentry,
                       int mode, dev_t rdev)
 {
-    svfs_debug(mdc, "mknod not implemented.\n");
+    svfs_entry(mdc, "mknod not implemented.\n");
     return -ENOSYS;
 }
 
 static int svfs_rename(struct inode *old_dir, struct dentry *old_dentry,
                        struct inode *new_dir, struct dentry *new_dentry)
 {
-    svfs_debug(mdc, "rename not implemented.\n");
+    svfs_entry(mdc, "rename not implemented.\n");
     return -ENOSYS;
 }
 
 static int svfs_setattr(struct dentry *dentry, struct iattr *attr)
 {
-    svfs_debug(mdc, "setattr not implemented.\n");
-    return -ENOSYS;
+    struct inode *inode = dentry->d_inode;
+    const unsigned int ia_valid = attr->ia_valid;
+    int err, rc;
+
+    err = inode_change_ok(inode, attr);
+    if (err)
+        return err;
+
+    if ((ia_valid & ATTR_UID && attr->ia_uid != inode->i_uid) ||
+        (ia_valid & ATTR_GID && attr->ia_gid != inode->i_gid)) {
+        /* quota transfer? */
+        if (attr->ia_valid & ATTR_UID)
+            inode->i_uid = attr->ia_uid;
+        if (attr->ia_valid & ATTR_GID)
+            inode->i_gid = attr->ia_gid;
+        err = svfs_mark_inode_dirty(inode);
+    }
+    if (S_ISREG(inode->i_mode) &&
+        (attr->ia_valid & ATTR_SIZE) && attr->ia_size < inode->i_size) {
+        SVFS_I(inode)->disksize = attr->ia_size;
+        rc = svfs_mark_inode_dirty(inode);
+        if (!err)
+            err = rc;
+        /* begin truncate the llfs inode now? what should I do */
+    }
+    rc = inode_setattr(inode, attr);
+    if (!err)
+        err = rc;
+    
+    return err;
 }
 
 const struct inode_operations svfs_dir_inode_operations = {
