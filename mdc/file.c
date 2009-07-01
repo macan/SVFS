@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-29 21:28:34 macan>
+ * Time-stamp: <2009-06-30 09:09:46 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -45,7 +45,8 @@ int llfs_lookup(struct inode *inode)
         goto out;
 
     err = -EINVAL;
-    sd = svfs_datastore_get(SVFS_I(inode)->llfs_md.llfs_type);
+    sd = svfs_datastore_get(SVFS_I(inode)->llfs_md.llfs_type,
+                            SVFS_I(inode)->llfs_md.llfs_fsid);
     if (!sd)
         goto out_release_name;
     sprintf(ref_path, "%s%s", sd->pathname,

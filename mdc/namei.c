@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-29 16:15:33 macan>
+ * Time-stamp: <2009-06-30 15:25:15 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -47,12 +47,13 @@ static int svfs_add_entry(struct dentry *dentry, struct inode *inode)
     if (SVFS_I(inode)->state & SVFS_STATE_CONN)
         goto out;
     
-    sd = svfs_datastore_get(LLFS_TYPE_ANY);
+    sd = svfs_datastore_get(LLFS_TYPE_ANY, 0);
     if (!sd) {
         retval = PTR_ERR(sd);
         goto out_dsget;
     }
     si->llfs_md.llfs_type = sd->type;
+    si->llfs_md.llfs_fsid = svfs_datastore_fsid(sd->pathname);
     retval = -ENOMEM;
     ref_path = __getname();
     if (!ref_path)
@@ -151,12 +152,12 @@ unsigned long svfs_find_entry(struct dentry *dentry)
     ino = svfs_backing_store_lookup(SVFS_SB(sb), dir->i_ino, 
                                     dentry->d_name.name);
     if (ino == -1UL) {
-        svfs_warning(mdc, "svfs_find_dentry can not find the entry %s\n",
+        svfs_debug(mdc, "svfs_find_dentry can not find the entry %s\n",
                      dentry->d_name.name);
         goto out;
     } else {
-        svfs_info(mdc, "svfs_find_dentry find the entry %s @ %ld\n",
-                  dentry->d_name.name, ino);
+        svfs_debug(mdc, "svfs_find_dentry find the entry %s @ %ld\n",
+                   dentry->d_name.name, ino);
     }
 #endif
 out:
@@ -203,7 +204,8 @@ static struct dentry *svfs_lookup(struct inode *dir, struct dentry *dentry,
         goto out;
 
     retval = ERR_PTR(-EINVAL);
-    sd = svfs_datastore_get(SVFS_I(inode)->llfs_md.llfs_type);
+    sd = svfs_datastore_get(SVFS_I(inode)->llfs_md.llfs_type,
+                            SVFS_I(inode)->llfs_md.llfs_fsid);
     if (!sd)
         goto out;
     sprintf(ref_path, "%s%s", sd->pathname, 
@@ -266,6 +268,7 @@ static int svfs_unlink(struct inode *dir, struct dentry *dentry)
     unsigned long ino = -1UL;
     int ret = 0;
     
+    svfs_entry(mdc, "unlink the LLFS dentry first\n");
     /* first, we should relay the unlink to LLFS now */
     if (S_ISDIR(inode->i_mode))
         goto bypass;
@@ -278,8 +281,8 @@ static int svfs_unlink(struct inode *dir, struct dentry *dentry)
     llfs_filp = SVFS_I(inode)->llfs_md.llfs_filp;
     /* do path get here? */
     svfs_debug(mdc, "1 dentry->d_count %d, inode->i_count %d\n",
-              atomic_read(&llfs_filp->f_dentry->d_count),
-              atomic_read(&llfs_filp->f_dentry->d_inode->i_count));
+               atomic_read(&llfs_filp->f_dentry->d_count),
+               atomic_read(&llfs_filp->f_dentry->d_inode->i_count));
     dget(llfs_filp->f_dentry);
     mutex_lock(&llfs_filp->f_dentry->d_parent->d_inode->i_mutex);
     atomic_inc(&llfs_filp->f_dentry->d_inode->i_count);
@@ -294,21 +297,14 @@ out_free:
     mutex_unlock(&llfs_filp->f_dentry->d_parent->d_inode->i_mutex);
     dput(llfs_filp->f_dentry);
     iput(llfs_filp->f_dentry->d_inode);
-    svfs_debug(mdc, "2 dentry->d_count %d, inode->i_count %d\n",
-              atomic_read(&llfs_filp->f_dentry->d_count),
-              atomic_read(&llfs_filp->f_dentry->d_inode->i_count));
+    svfs_debug(mdc, "2 dentry->d_count %d, inode->i_count %d, ret %d\n",
+               atomic_read(&llfs_filp->f_dentry->d_count),
+               atomic_read(&llfs_filp->f_dentry->d_inode->i_count), ret);
     if (ret)
         goto out;
 
 bypass:
     ret = -ENOENT;
-    ino = svfs_find_entry(dentry);
-    if (ino == -1UL) {
-        svfs_warning(mdc, "Already unlink the LLFS dentry! "
-                     "Consistency gone\n");
-        goto out;
-    }
-
     ASSERT(inode);
     if (!inode->i_nlink) {
         svfs_warning(mdc, "svfs_unlink deleting nonexistent file "
@@ -328,8 +324,8 @@ bypass:
     svfs_mark_inode_dirty(inode);
     
     ret = 0;
-    svfs_info(mdc, "unlink ino %ld %s in %ld.\n", inode->i_ino,
-              dentry->d_name.name, dir->i_ino);
+    svfs_debug(mdc, "unlink ino %ld %s in %ld.\n", inode->i_ino,
+               dentry->d_name.name, dir->i_ino);
 out:
     return ret;
 }

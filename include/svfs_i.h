@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-29 11:26:22 macan>
+ * Time-stamp: <2009-06-30 14:13:28 macan>
  *
  * Define SVFS inodes
  *
@@ -49,6 +49,7 @@ struct backing_store_entry
     gid_t gid;
     struct timespec atime, ctime, mtime;
     u32 llfs_type;
+    u32 llfs_fsid;
     char relative_path[NAME_MAX];
     char ref_path[NAME_MAX];
 };
@@ -72,6 +73,7 @@ struct svfs_super_block
     struct file *bs_filp;
     struct backing_store_entry *bse;
     int bs_size;
+    atomic_t bs_inuse;
 #endif
 
     struct super_block *sb;
@@ -98,6 +100,7 @@ struct svfs_referal
 #define LLFS_TYPE_ANY  0x80
 #define LLFS_TYPE_ERR  0x40
     u32 llfs_type;             /* llfs filesystem type */
+    u32 llfs_fsid;
     struct file *llfs_filp;
 
     char llfs_pathname[NAME_MAX];

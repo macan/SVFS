@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-29 17:14:04 macan>
+ * Time-stamp: <2009-06-30 15:03:56 macan>
  *
  * inode.c for SVFS
  *
@@ -65,7 +65,8 @@ int svfs_mark_inode_dirty(struct inode *inode)
         struct backing_store_entry *bse = (ssb->bse + inode->i_ino);
 
         if (si->state & SVFS_STATE_NEW) {
-            memset(bse, 0, sizeof(struct backing_store_entry));
+/*             memset(bse, 0, sizeof(struct backing_store_entry)); */
+            bse->state = 0;
             bse->state |= SVFS_BS_NEW;
         }
         bse->state |= SVFS_BS_DIRTY;
@@ -366,6 +367,7 @@ struct inode *svfs_iget(struct super_block *sb, unsigned long ino)
         SVFS_I(inode)->flags = bse->disk_flags;
         /* get the ref path */
         SVFS_I(inode)->llfs_md.llfs_type = bse->llfs_type;
+        SVFS_I(inode)->llfs_md.llfs_fsid = bse->llfs_fsid;
         err = svfs_backing_store_get_path(
             ssb, bse, 
             SVFS_I(inode)->llfs_md.llfs_pathname, NAME_MAX - 1);

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-29 16:08:31 macan>
+ * Time-stamp: <2009-06-30 14:39:31 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -77,15 +77,20 @@
 #define SVFS_DEFAULT_LEVEL 0xf0000000
 #define SVFS_DEBUG_ALL     0x0000000f
 
+#ifdef SVFS_TRACING
 #define svfs_tracing(mask, flag, lvl, f, a...) do {     \
         if (mask & flag) {                              \
             if (mask & SVFS_PRECISE) {                  \
                 printk(lvl "SVFS (%s, %d): %s: ",       \
                        __FILE__, __LINE__, __func__);   \
-            }                                           \
-            printk(f, ## a);                            \
+                printk(f, ## a);                        \
+            } else                                      \
+                printk(lvl f, ## a);                    \
         }                                               \
     } while (0)
+#else
+#define svfs_tracing(mask, flag, lvl, f, a...)
+#endif
 
 #define IS_SVFS_DEBUG(module) ({                            \
             int ret;                                        \
@@ -164,8 +169,10 @@ extern void svfs_datastore_init(void);
 extern struct svfs_datastore *svfs_datastore_add_new(int, char *);
 extern void svfs_datastore_free(struct svfs_datastore *);
 extern void svfs_datastore_exit(void);
-extern struct svfs_datastore *svfs_datastore_get(int type);
+extern struct svfs_datastore *svfs_datastore_get(int type, u32 fsid);
 extern int svfs_datastore_adding(char *);
+extern u32 svfs_datastore_fsid(char *pathname); /* ignore llfs type? */
+extern void svfs_datastore_statfs(struct kstatfs *);
 /* APIs for symlink.c */
 extern const struct inode_operations svfs_fast_symlink_inode_operations;
 /* APIs for lib/config.c */
@@ -200,7 +207,7 @@ extern int svfs_lib_tracing_add(char *, unsigned int *);
 #ifdef SVFS_LOCAL_TEST
 extern char *svfs_backing_store;
 extern char *svfs_targeting_store;
-#define SVFS_BACKING_STORE_SIZE (128 * 1024)
+#define SVFS_BACKING_STORE_SIZE (10 * 1024 * 1024)
 extern ssize_t svfs_backing_store_write(struct svfs_super_block *);
 extern ssize_t svfs_backing_store_read(struct svfs_super_block *);
 extern void svfs_backing_store_commit_bse(struct inode *);
@@ -223,6 +230,7 @@ extern int svfs_backing_store_delete(struct svfs_super_block *,
                                      unsigned long, unsigned long,
                                      const char *);
 extern int svfs_backing_store_is_ood(struct inode *);
+extern int svfs_backing_store_scan(struct svfs_super_block *);
 #endif
 
 /* relay operations */

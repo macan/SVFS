@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-27 13:51:23 macan>
+ * Time-stamp: <2009-06-30 14:31:12 macan>
  *
  * Supporting SVFS superblock operations.
  *
@@ -129,16 +129,16 @@ static int svfs_statfs(struct dentry *dentry, struct kstatfs *buf)
     /* TODO: fill the buf by the returned states */
     buf->f_type = SVFS_SUPER_MAGIC;
     buf->f_bsize = sb->s_blocksize;
-    buf->f_blocks = 0x1000;     /* FIXME */
-    buf->f_bfree = 0x500;
-    buf->f_bavail = 0x400;
-    buf->f_files = 0;
-    buf->f_ffree = 0x1000;
+    /* Geting f_blocks,f_bfree,f_bavail from LLFSs */
+    svfs_datastore_statfs(buf);
+    buf->f_files = ssb->bs_size;
+    buf->f_ffree = ssb->bs_size - (int)atomic_read(&ssb->bs_inuse);
     buf->f_namelen = SVFS_NAME_LEN;
     buf->f_fsid.val[0] = ssb->fsid & 0xFFFFFFFFUL;
     buf->f_fsid.val[1] = (ssb->fsid >> 32) & 0xFFFFFFFFUL;
 
-    svfs_debug(mdc, "svfs statfs: type 0x%lx\n", buf->f_type);
+    svfs_debug(mdc, "svfs statfs: type 0x%lx, files %d, ffree %d\n", 
+               buf->f_type, (int)buf->f_files, (int)buf->f_ffree);
     return 0;
 }
 
@@ -274,6 +274,7 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
         unlock_new_inode(inode);
 #ifdef SVFS_LOCAL_TEST
         svfs_backing_store_set_root(ssb);
+        atomic_set(&ssb->bs_inuse, svfs_backing_store_scan(ssb));
 #endif        
         svfs_debug(mdc, "root inode state I_NEW, ct=%d, i_flags 0x%x\n", 
                    atomic_read(&inode->i_count), inode->i_flags);

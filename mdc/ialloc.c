@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-26 21:37:44 macan>
+ * Time-stamp: <2009-06-30 14:06:51 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -112,12 +112,17 @@ struct inode *svfs_new_inode(struct inode *dir, int mode)
     /* TODO: need to do what? */
     err = svfs_mark_inode_dirty(inode);
     if (err)
-        goto fail_drop;
+        goto fail_drop_put;
 
     svfs_debug(mdc, "allocating inode %lu, i_flags 0x%x\n", 
                inode->i_ino, inode->i_flags);
 
     return inode;
+fail_drop_put:
+#ifdef SVFS_LOCAL_TEST
+    /* FIXME: put/return the inode in backing store! */
+    svfs_backing_store_delete(ssb, 0, ino, NULL);
+#endif
 fail_drop:
     inode->i_nlink = 0;
     iput(inode);

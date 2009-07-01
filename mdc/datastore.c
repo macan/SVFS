@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-29 10:33:48 macan>
+ * Time-stamp: <2009-06-30 14:18:57 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -75,6 +75,26 @@ int svfs_datastore_adding(char *conf_filename)
     return rc;
 }
 
+/*
+ * This function hash the input string 'name' using the ELF hash
+ * function for strings.
+ */
+
+u32 svfs_datastore_fsid(char *name)
+{
+    __u32 h = 0;
+	__u32 g;
+
+	while(*name) {
+		h = (h<<4) + *name++;
+		if ((g = (h & 0xf0000000)))
+			h ^=g>>24;
+		h &=~g;
+	}
+    
+	return h;
+}
+
 struct svfs_datastore *svfs_datastore_add_new(int type, char *pathname)
 {
     struct file_system_type *fstype;
@@ -140,7 +160,7 @@ fail_lookup:
     return ERR_PTR(err);
 }
 
-struct svfs_datastore *svfs_datastore_get(int type)
+struct svfs_datastore *svfs_datastore_get(int type, u32 fsid)
 {
     struct svfs_datastore *pos;
     int select = 0, cur = 0;
@@ -152,12 +172,32 @@ struct svfs_datastore *svfs_datastore_get(int type)
         select = random32() % svfs_datastore_count;
     
     list_for_each_entry(pos, &svfs_datastore_list, list) {
-        if (type == pos->type || 
+        if ((type == pos->type && 
+             fsid == svfs_datastore_fsid(pos->pathname))|| 
             ((type & LLFS_TYPE_ANY) && select == cur))
             return pos;
         cur++;
     }
     return NULL;
+}
+
+void svfs_datastore_statfs(struct kstatfs *buf)
+{
+    struct kstatfs st;
+    struct svfs_datastore *pos;
+    int ret = 0;
+
+    /* init it first */
+    buf->f_blocks = buf->f_bfree = buf->f_bavail = 0;
+
+    list_for_each_entry(pos, &svfs_datastore_list, list) {
+        ret = vfs_statfs(pos->root_path.dentry, &st);
+        if (!ret) {
+            buf->f_blocks += st.f_blocks;
+            buf->f_bfree += st.f_bfree;
+            buf->f_bavail += st.f_bavail;
+        }
+    }
 }
 
 void svfs_datastore_free(struct svfs_datastore *sd)

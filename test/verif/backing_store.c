@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-29 16:18:44 macan>
+ * Time-stamp: <2009-07-01 10:12:29 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -136,8 +136,8 @@ unsigned long svfs_backing_store_lookup(struct svfs_super_block *ssb,
     while (ino < SVFS_BACKING_STORE_SIZE / 
            sizeof(struct backing_store_entry)) {
         if (bse->parent_offset == dir_ino &&
-            !strcmp(bse->relative_path, name) && 
-                    bse->state) {
+            bse->state &&
+            !strcmp(bse->relative_path, name)) {
             return ino;
         }
         ino++;
@@ -154,16 +154,36 @@ int svfs_backing_store_delete(struct svfs_super_block *ssb,
 {
     struct backing_store_entry *bse = ssb->bse + ino;
 
-    if (bse->state & SVFS_BS_VALID) {
+    if (likely(bse->state & SVFS_BS_VALID)) {
         /* checking it */
         ASSERT(dir_ino == bse->parent_offset);
-        ASSERT(!strncmp(bse->relative_path, name, strlen(name)));
+        if (strncmp(bse->relative_path, name, strlen(name))) {
+            /* invalid name, ignore it? */
+            svfs_warning(mdc, "Invalid name %s vs %s @ %ld\n",
+                         name, bse->relative_path, ino);
+        }
         bse->state |= SVFS_BS_DELETING;
     } else {
+        bse->state = 0;
         svfs_warning(mdc, "delete invalid bse entry %lu %s @ %lu\n",
                      ino, name, dir_ino);
     }
+    atomic_dec(&ssb->bs_inuse);
     return 0;
+}
+
+int svfs_backing_store_scan(struct svfs_super_block *ssb)
+{
+    unsigned long i;
+    struct backing_store_entry *bse = ssb->bse;
+    int rc = 0;
+
+    for (i = 0; i < ssb->bs_size; i++, bse++) {
+        if (bse->state) {
+            rc++;
+        }
+    }
+    return rc;
 }
 
 unsigned long svfs_backing_store_find_child(struct svfs_super_block *ssb,
@@ -206,7 +226,7 @@ int svfs_backing_store_update_bse(struct svfs_super_block *ssb,
     bse->parent_offset = (u32)dir->i_ino;
     bse->depth = parent->depth + 1;
     bse->state &= ~SVFS_BS_NEW;
-    sprintf(bse->relative_path, "%s", dentry->d_name.name);
+    strcpy(bse->relative_path, dentry->d_name.name);
     /* FIXME: setting up the entry automatically */
     if (!S_ISLNK(inode->i_mode))
         sprintf(bse->ref_path, "ino_%ld", inode->i_ino);
@@ -262,6 +282,7 @@ void svfs_backing_store_commit_bse(struct inode *inode)
     bse->ctime = inode->i_ctime;
     bse->mtime = inode->i_mtime;
     bse->llfs_type = si->llfs_md.llfs_type;
+    bse->llfs_fsid = si->llfs_md.llfs_fsid;
     /* FIXME: should copy the llfs_path to bse! */
 
     svfs_debug(mdc, "bse %ld nlink %d, size %lu, mode 0x%x, "
@@ -278,10 +299,10 @@ void svfs_backing_store_commit_bse(struct inode *inode)
     svfs_get_inode_flags(si);
     bse->disk_flags = si->flags;
 
-    if (S_ISDIR(inode->i_mode))
-        bse->state |= SVFS_BS_DIR;
-    else if (S_ISREG(inode->i_mode))
+    if (S_ISREG(inode->i_mode))
         bse->state |= SVFS_BS_FILE;
+    else if (S_ISDIR(inode->i_mode))
+        bse->state |= SVFS_BS_DIR;
     else if (S_ISLNK(inode->i_mode))
         bse->state |= SVFS_BS_LINK;
     else
@@ -294,20 +315,32 @@ void svfs_backing_store_commit_bse(struct inode *inode)
 
 unsigned long svfs_backing_store_find_mark_ino(struct svfs_super_block *ssb)
 {
-    unsigned long ino = 0;
-    struct backing_store_entry *bse = ssb->bse;
+    static unsigned long ino = 0;
+    struct backing_store_entry *bse;
+    int counter = 0;
 
-    while (ino < ssb->bs_size) {
+    ino++;
+    if (unlikely(ino == ssb->bs_size)) {
+        ino = 1;
+        counter++;
+    }
+    for (; counter < ssb->bs_size; counter++) {
         bse = ssb->bse + ino;
         if (!bse->state) {
             bse->state = SVFS_BS_NEW;
             break;
         }
         ino++;
+        if (unlikely(ino == ssb->bs_size)) {
+            ino = 1;
+            counter++;
+        }
     }
-    if (ino >= ssb->bs_size) {
+
+    if (unlikely(counter >= ssb->bs_size)) {
         ino = -1UL;
-    }
+    } else
+        atomic_inc(&ssb->bs_inuse);
     svfs_debug(mdc, "find new bse %ld\n", ino);
     return ino;
 }
@@ -316,6 +349,7 @@ void svfs_backing_store_set_root(struct svfs_super_block *ssb)
 {
     struct backing_store_entry *root = ssb->bse;
 
+    atomic_inc(&ssb->bs_inuse);
     root->parent_offset = 0;
     root->depth = 0;
     root->state = SVFS_BS_VALID | SVFS_BS_DIR;
@@ -339,7 +373,7 @@ int svfs_backing_store_get_path(struct svfs_super_block *ssb,
     memset(buf, 0, len);
     if (len < 0 || !(bse->state & SVFS_BS_VALID))
         return -EINVAL;
-    if (!depth) {
+    if (unlikely(!depth)) {
         snprintf(buf, len, "/");
         return 0;
     }
@@ -349,9 +383,8 @@ int svfs_backing_store_get_path(struct svfs_super_block *ssb,
         pos = ssb->bse + pos->parent_offset;
     }
 
-    p = buf;
-    snprintf(buf, len, "/");
-    p++;
+    buf[0] = '/';
+    p = &buf[1];
     len--;
     while (depth < bse->depth) {
         bp = snprintf(p, len, ".%s", cursor[depth++]);
