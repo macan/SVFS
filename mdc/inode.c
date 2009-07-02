@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-30 15:03:56 macan>
+ * Time-stamp: <2009-07-02 09:54:24 macan>
  *
  * inode.c for SVFS
  *
@@ -96,6 +96,8 @@ void svfs_truncate(struct inode *inode)
     int ret;
 
     /* checking the llfs_md */
+    if (si->state & SVFS_STATE_DA)
+        return;
     if (!(si->state & SVFS_STATE_CONN)) {
         ret = llfs_lookup(inode);
         if (ret)
@@ -368,7 +370,7 @@ struct inode *svfs_iget(struct super_block *sb, unsigned long ino)
         /* get the ref path */
         SVFS_I(inode)->llfs_md.llfs_type = bse->llfs_type;
         SVFS_I(inode)->llfs_md.llfs_fsid = bse->llfs_fsid;
-        err = svfs_backing_store_get_path(
+        err = svfs_backing_store_get_path2(
             ssb, bse, 
             SVFS_I(inode)->llfs_md.llfs_pathname, NAME_MAX - 1);
         if (err) {

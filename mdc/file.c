@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-30 09:09:46 macan>
+ * Time-stamp: <2009-07-02 09:55:04 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,6 +35,8 @@ int llfs_lookup(struct inode *inode)
     int err = 0;
     
     if (S_ISDIR(inode->i_mode))
+        goto out;
+    if (SVFS_I(inode)->state & SVFS_STATE_DA)
         goto out;
     if (SVFS_I(inode)->state & SVFS_STATE_CONN)
         goto out;
@@ -93,6 +95,53 @@ out_release_name:
     goto out;
 }
 
+/* This function is ONLY designed for SVFS_STATE_DA */
+int llfs_create(struct dentry *dentry)
+{
+    struct inode *inode = dentry->d_inode;
+    struct svfs_inode *si = SVFS_I(inode);
+    struct svfs_datastore *sd;
+    struct file *llfs_file;
+    char *ref_path;
+    int ret;
+
+    sd = svfs_datastore_get(LLFS_TYPE_ANY, 0);
+    if (!sd) {
+        ret = PTR_ERR(sd);
+        goto out;
+    }
+    si->llfs_md.llfs_type = sd->type;
+    si->llfs_md.llfs_fsid = svfs_datastore_fsid(sd->pathname);
+    ret = -ENOMEM;
+    ref_path = __getname();
+    if (!ref_path)
+        goto out;
+    ret = svfs_backing_store_get_path2(SVFS_SB(inode->i_sb),
+                                       SVFS_SB(inode->i_sb)->bse + 
+                                       inode->i_ino,
+                                       si->llfs_md.llfs_pathname,
+                                       NAME_MAX - 1);
+    if (ret)
+        goto out_putname;
+    snprintf(ref_path, PATH_MAX - 1, "%s%s", sd->pathname,
+             si->llfs_md.llfs_pathname);
+    svfs_debug(mdc, "New LLFS path %s, state 0x%x\n", ref_path, si->state);
+    llfs_file = filp_open(ref_path, O_RDWR | O_CREAT,
+                          S_IRUGO | S_IWUSR);
+    ret = PTR_ERR(llfs_file);
+    if (IS_ERR(llfs_file))
+        goto out_putname;
+    si->llfs_md.llfs_filp = llfs_file;
+    si->state |= SVFS_STATE_CONN;
+    si->state &= ~SVFS_STATE_DA;
+    ret = 0;
+    
+out_putname:
+    __putname(ref_path);
+out:
+    return ret;
+}
+
 static ssize_t
 svfs_file_aio_read(struct kiocb *iocb, const struct iovec *iov,
                    unsigned long nr_segs, loff_t pos)
@@ -106,6 +155,14 @@ svfs_file_aio_read(struct kiocb *iocb, const struct iovec *iov,
     ssize_t ret = 0, br;
     int seg;
 
+    if (si->state & SVFS_STATE_DA) {
+        /* create it now */
+        ASSERT(!(si->state & SVFS_STATE_CONN));
+        ret = llfs_create(filp->f_dentry);
+        if (ret)
+            goto out;
+    }
+    
     if (!(si->state & SVFS_STATE_CONN)) {
         /* open it? */
         ret = llfs_lookup(inode);
@@ -156,6 +213,14 @@ svfs_file_aio_write(struct kiocb *iocb, const struct iovec *iov,
                filp->f_mode,
                (unsigned long)pos,
                (si->state & SVFS_STATE_CONN));
+    if (si->state & SVFS_STATE_DA) {
+        /* create it now */
+        ASSERT(!(si->state & SVFS_STATE_CONN));
+        ret = llfs_create(filp->f_dentry);
+        if (ret)
+            goto out;
+    }
+
     if (!(si->state & SVFS_STATE_CONN)) {
         /* open it? */
         ret = llfs_lookup(inode);

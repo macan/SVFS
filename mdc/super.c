@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-30 14:31:12 macan>
+ * Time-stamp: <2009-07-01 15:34:49 macan>
  *
  * Supporting SVFS superblock operations.
  *
@@ -270,6 +270,8 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
         inode->i_gid = 0;
         inode->i_blocks = 8;
         svfs_get_inode_flags(SVFS_I(inode));
+        /* FIXME: setting DA here? */
+        si->flags |= SVFS_IF_DA;
 
         unlock_new_inode(inode);
 #ifdef SVFS_LOCAL_TEST

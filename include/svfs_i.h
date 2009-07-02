@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-30 14:13:28 macan>
+ * Time-stamp: <2009-07-01 15:00:20 macan>
  *
  * Define SVFS inodes
  *
@@ -148,6 +148,7 @@ struct svfs_inode
 #define SVFS_IF_LARGE     0x40000000 /* large file */
 #define SVFS_IF_NORMAL    0x10000000 /* normal file */
 #define SVFS_IF_COMPR     0x00800000 /* compress */
+#define SVFS_IF_DA        0x00400000 /* delay allocation? */
 #define SVFS_IF_NOATIME   0x00008000 /* no atime */
 #define SVFS_IF_SYNC      0x00000080 /* sync update */
 #define SVFS_IF_APPEND    0x00000040 /* append only */
@@ -158,6 +159,7 @@ struct svfs_inode
 #define SVFS_STATE_XATTR  0x00000002 /* has xattr in-inode */
 #define SVFS_STATE_DISC   0x80000000 /* disconnect inode, no llfs inode */
 #define SVFS_STATE_CONN   0x40000000 /* connected inode, has llfs inode */
+#define SVFS_STATE_DA     0x20000000 /* delay allocation, no llfs inode */
     u32 state;
     u32 dtime;                /* deletion time */
     loff_t disksize;            /* modified only by get_block and truncate */

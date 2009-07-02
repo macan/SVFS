@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-30 14:39:31 macan>
+ * Time-stamp: <2009-07-02 09:55:45 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -222,6 +222,9 @@ extern void svfs_backing_store_set_root(struct svfs_super_block *);
 extern int svfs_backing_store_get_path(struct svfs_super_block *,
                                        struct backing_store_entry *,
                                        char *, size_t);
+extern int svfs_backing_store_get_path2(struct svfs_super_block *,
+                                        struct backing_store_entry *,
+                                        char *, size_t);
 extern void svfs_backing_store_write_dirty(struct svfs_super_block *);
 extern unsigned long svfs_backing_store_find_child(
     struct svfs_super_block *,

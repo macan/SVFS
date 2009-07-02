@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-30 14:06:51 macan>
+ * Time-stamp: <2009-07-02 09:01:26 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -71,8 +71,7 @@ struct inode *svfs_new_inode(struct inode *dir, int mode)
 #ifdef SVFS_LOCAL_TEST
     {
         ino = svfs_backing_store_find_mark_ino(ssb);
-        if (ino >= SVFS_BACKING_STORE_SIZE / 
-            sizeof(struct backing_store_entry)) {
+        if (unlikely(ino == -1UL)) {
             /* get an invalid ino */
             svfs_warning(mdc, "Invalid ino %ld\n", ino);
             err = -ENOSPC;

@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-07-01 10:12:29 macan>
+ * Time-stamp: <2009-07-02 09:56:48 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -391,6 +391,26 @@ int svfs_backing_store_get_path(struct svfs_super_block *ssb,
         p += bp;
         len -= bp;
     }
+    return 0;
+}
+
+int svfs_backing_store_get_path2(struct svfs_super_block *ssb,
+                                 struct backing_store_entry *bse,
+                                 char *buf, size_t len)
+{
+    char *p = &buf[2];
+
+    if (len < 0 || !(bse->state & SVFS_BS_VALID))
+        return -EINVAL;
+    if (unlikely(!bse->depth))
+        return 0;
+
+    len -= 2;
+    memset(p, 0, len);
+    buf[0] = '/';
+    buf[1] = '.';
+    
+    strncpy(p, bse->ref_path, len);
     return 0;
 }
 

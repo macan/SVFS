@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-06-30 15:25:15 macan>
+ * Time-stamp: <2009-07-02 09:54:50 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,8 +44,15 @@ static int svfs_add_entry(struct dentry *dentry, struct inode *inode)
     /* TODO: alloc the llfs inode? */
     if (S_ISDIR(inode->i_mode))
         goto out;
-    if (SVFS_I(inode)->state & SVFS_STATE_CONN)
+    if (si->state & SVFS_STATE_CONN)
         goto out;
+    /* OK, should we do delay allocation here? */
+    if (si->flags & SVFS_IF_DA) {
+        svfs_debug(mdc, "do delay allocation '%s' here\n", 
+                   dentry->d_name.name);
+        si->state |= SVFS_STATE_DA;
+        goto out;
+    }
     
     sd = svfs_datastore_get(LLFS_TYPE_ANY, 0);
     if (!sd) {
@@ -58,10 +65,10 @@ static int svfs_add_entry(struct dentry *dentry, struct inode *inode)
     ref_path = __getname();
     if (!ref_path)
         goto out_dsget;
-    retval = svfs_backing_store_get_path(SVFS_SB(sb), 
-                                         SVFS_SB(sb)->bse + inode->i_ino,
-                                         si->llfs_md.llfs_pathname,
-                                         NAME_MAX - 1);
+    retval = svfs_backing_store_get_path2(SVFS_SB(sb), 
+                                          SVFS_SB(sb)->bse + inode->i_ino,
+                                          si->llfs_md.llfs_pathname,
+                                          NAME_MAX - 1);
     if (retval)
         goto out_putname;
     snprintf(ref_path, PATH_MAX - 1, "%s%s", sd->pathname,
@@ -200,6 +207,8 @@ static struct dentry *svfs_lookup(struct inode *dir, struct dentry *dentry,
     /* if it is a dir, then no need to propagate to llfs */
     if (S_ISDIR(inode->i_mode))
         goto out;
+    if (SVFS_I(inode)->state & SVFS_STATE_DA)
+        goto out;
     if (SVFS_I(inode)->state & SVFS_STATE_CONN)
         goto out;
 
@@ -265,13 +274,15 @@ static int svfs_unlink(struct inode *dir, struct dentry *dentry)
 {
     struct inode *inode = dentry->d_inode;
     struct file *llfs_filp;
-    unsigned long ino = -1UL;
     int ret = 0;
     
     svfs_entry(mdc, "unlink the LLFS dentry first\n");
     /* first, we should relay the unlink to LLFS now */
     if (S_ISDIR(inode->i_mode))
         goto bypass;
+    if (SVFS_I(inode)->state & SVFS_STATE_DA) {
+        goto bypass;
+    }
     if (!(SVFS_I(inode)->state & SVFS_STATE_CONN)) {
         /* open it? */
         ret = llfs_lookup(inode);

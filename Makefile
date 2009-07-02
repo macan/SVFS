@@ -2,7 +2,7 @@
 # Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
 #                           <macan@ncic.ac.cn>
 #
-# Time-stamp: <2009-06-29 15:59:23 macan>
+# Time-stamp: <2009-07-01 15:42:24 macan>
 #
 # This is the makefile for SVFS module.
 #
@@ -54,7 +54,7 @@ modules:
 
 endif
 
-install:
+install: modules
 	scp *.ko root@10.10.111.82:/root/svfs/
 
 clean:
