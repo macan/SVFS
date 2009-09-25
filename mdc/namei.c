@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-07-02 09:54:50 macan>
+ * Time-stamp: <2009-07-22 17:21:52 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -261,6 +261,26 @@ out_put_filp:
 fail_lookup:
     retval = ERR_PTR(err);
     goto out;
+}
+
+struct dentry *svfs_get_parent(struct dentry *child)
+{
+    struct inode *inode;
+    unsigned long ino;
+    
+#ifdef SVFS_LOCAL_TEST
+    ino = svfs_backing_store_lookup_parent(SVFS_SB(child->d_inode->i_sb), 
+                                           child->d_inode->i_ino);
+    if (ino == -1UL) {
+        svfs_err(mdc, "get parent failed! What happened?\n");
+        return ERR_PTR(-ENOENT);
+    }
+#endif
+    inode = svfs_iget(child->d_inode->i_sb, ino);
+    if (IS_ERR(inode))
+        return ERR_CAST(inode);
+
+    return d_obtain_alias(inode);
 }
 
 static int svfs_link(struct dentry *old_dentry, struct inode *dir,

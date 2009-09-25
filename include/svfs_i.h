@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-07-01 15:00:20 macan>
+ * Time-stamp: <2009-07-22 16:40:53 macan>
  *
  * Define SVFS inodes
  *
@@ -48,6 +48,7 @@ struct backing_store_entry
     uid_t uid;
     gid_t gid;
     struct timespec atime, ctime, mtime;
+    u32 generation;
     u32 llfs_type;
     u32 llfs_fsid;
     char relative_path[NAME_MAX];
@@ -102,6 +103,8 @@ struct svfs_referal
     u32 llfs_type;             /* llfs filesystem type */
     u32 llfs_fsid;
     struct file *llfs_filp;
+    struct dentry *llfs_dentry;
+    struct vfsmount *llfs_mnt;
 
     char llfs_pathname[NAME_MAX];
 };
@@ -162,7 +165,7 @@ struct svfs_inode
 #define SVFS_STATE_DA     0x20000000 /* delay allocation, no llfs inode */
     u32 state;
     u32 dtime;                /* deletion time */
-    loff_t disksize;            /* modified only by get_block and truncate */
+    loff_t disksize;          /* modified only by get_block and truncate */
     struct timespec crtime;
 
     /* layout */

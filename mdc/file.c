@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-07-02 09:55:04 macan>
+ * Time-stamp: <2009-08-12 15:49:24 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -139,6 +139,8 @@ int llfs_create(struct dentry *dentry)
 out_putname:
     __putname(ref_path);
 out:
+    svfs_exit(mdc, "err %d. [NOTE]: if you get error here,"
+              " you should check the LLFS permissions!\n", ret);
     return ret;
 }
 
@@ -334,6 +336,129 @@ out:
 	return ret;
 }
 
+static 
+ssize_t svfs_file_splice_read(struct file *in, loff_t *ppos,
+                              struct pipe_inode_info *pipe, size_t len,
+                              unsigned int flags)
+{
+    int ret;
+    struct file *llfs_file;
+    struct svfs_inode *si;
+
+    svfs_entry(mdc, "pos %lu, len %ld, flags 0x%x\n", (unsigned long)*ppos,
+               (long)len, flags);
+
+    /* we should change the file struct here! */
+    si = SVFS_I(in->f_dentry->d_inode);
+    if (si->state & SVFS_STATE_DA) {
+        /* create it now */
+        ASSERT(!(si->state & SVFS_STATE_CONN));
+        ret = llfs_create(in->f_dentry);
+        if (ret)
+            goto out;
+    }
+    if (!(si->state & SVFS_STATE_CONN)) {
+        /* open it ? */
+        ret = llfs_lookup(in->f_dentry->d_inode);
+        if (ret)
+            goto out;
+    }
+    
+    llfs_file = si->llfs_md.llfs_filp;
+    ASSERT(llfs_filp);
+    ret = generic_file_splice_read(llfs_file, ppos, pipe, len, flags);
+    
+out:
+    return ret;
+}
+
+static
+ssize_t svfs_file_splice_write(struct pipe_inode_info *pipe, 
+                               struct file *out, loff_t *ppos, size_t len,
+                               unsigned int flags)
+{
+    struct address_space *mapping;
+    struct inode *inode;
+    struct file *llfs_filp;
+    struct svfs_inode *si;
+    struct splice_desc sd = {0,};
+    ssize_t ret;
+
+    svfs_entry(mdc, "pos %lu, len %ld, flags 0x%x\n", (unsigned long)*ppos,
+               (long)len, flags);
+
+    si = SVFS_I(out->f_dentry->d_inode);
+    if (si->state & SVFS_STATE_DA) {
+        /* create it now */
+        ASSERT(!(si->state & SVFS_STATE_CONN));
+        ret = llfs_create(out->f_dentry);
+        if (ret)
+            goto out;
+    }
+    if (!(si->state & SVFS_STATE_CONN)) {
+        /* open it ? */
+        ret = llfs_lookup(out->f_dentry->d_inode);
+        if (ret)
+            goto out;
+    }
+    llfs_filp = si->llfs_md.llfs_filp;
+    ASSERT(llfs_filp);
+    mapping = llfs_filp->f_mapping;
+    inode = mapping->host;
+    sd.total_len = len;
+    sd.flags = flags;
+    sd.pos = *ppos;
+    sd.u.file = llfs_filp;
+
+    pipe_lock(pipe);
+
+    splice_from_pipe_begin(&sd);
+    do {
+        ret = splice_from_pipe_next(pipe, &sd);
+        if (ret <= 0)
+            break;
+
+        mutex_lock_nested(&inode->i_mutex, I_MUTEX_CHILD);
+        ret = file_remove_suid(out);
+        if (!ret)
+            ret = splice_from_pipe_feed(pipe, &sd, pipe_to_file);
+        mutex_unlock(&inode->i_mutex);
+    } while (ret > 0);
+    splice_from_pipe_end(pipe, &sd);
+
+    pipe_unlock(pipe);
+
+    if (sd.num_spliced)
+        ret = sd.num_spliced;
+
+    if (ret > 0) {
+        unsigned long nr_pages;
+
+        *ppos += ret;
+        nr_pages = (ret + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+
+		/*
+		 * If file or inode is SYNC and we actually wrote some data,
+		 * sync it.
+		 */
+        if (unlikely((out->f_flags & O_SYNC) || IS_SYNC(inode))) {
+            int err;
+
+            mutex_lock(&inode->i_mutex);
+            err = generic_osync_inode(inode, mapping,
+                                      OSYNC_METADATA|OSYNC_DATA);
+            mutex_unlock(&inode->i_mutex);
+
+            if (err)
+                ret = err;
+        }
+        balance_dirty_pages_ratelimited_nr(mapping, nr_pages);
+    }
+
+out:
+    return ret;
+}
+
 const struct file_operations svfs_file_operations = {
     .llseek = svfs_file_llseek,
     .open = generic_file_open,
@@ -341,8 +466,8 @@ const struct file_operations svfs_file_operations = {
     .aio_write = svfs_file_aio_write,
     .mmap = svfs_file_mmap,
     .fsync = svfs_sync_file,
-    .splice_read = generic_file_splice_read,
-    .splice_write = generic_file_splice_write,
+    .splice_read = svfs_file_splice_read,
+    .splice_write = svfs_file_splice_write,
 };
 
 const struct inode_operations svfs_file_inode_operations = {

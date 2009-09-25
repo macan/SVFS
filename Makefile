@@ -2,7 +2,7 @@
 # Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
 #                           <macan@ncic.ac.cn>
 #
-# Time-stamp: <2009-07-01 15:42:24 macan>
+# Time-stamp: <2009-07-22 17:10:47 macan>
 #
 # This is the makefile for SVFS module.
 #
@@ -21,7 +21,7 @@ EXTRA_CFLAGS += -DCDATE="\"$(COMPILE_DATE)\""
 EXTRA_CFLAGS += -DCHOST="\"$(COMPILE_HOST)\""
 
 EXTRA_CFLAGS += -I$(PWD)/include -I$(KERNEL_INC) 
-EXTRA_CFLAGS += -DMDC_TRACING_EXTERNAL -DSVFS_LOCAL_TEST
+EXTRA_CFLAGS += -DMDC_TRACING_EXTERNAL -DSVFS_LOCAL_TEST -DSVFS_TRACING
 EXTRA_CFLAGS += -Wall -O2
 
 MDC := mdc

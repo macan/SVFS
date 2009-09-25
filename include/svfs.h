@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-07-02 09:55:45 macan>
+ * Time-stamp: <2009-08-12 15:29:17 macan>
  *
  * klagent supply the interface between BLCR and LAGENT(user space)
  *
@@ -56,6 +56,10 @@
 #include <linux/proc_fs.h>
 #include <linux/wait.h>
 #include <linux/seq_file.h>
+#include <linux/exportfs.h>
+#include <linux/dcache.h>
+#include <linux/splice.h>
+#include <linux/pagemap.h>
 
 /* svfs inode structures */
 #include "svfs_i.h"
@@ -124,6 +128,11 @@
                  svfs_##module##_tracing_flags, \
                  KERN_DEBUG, "entry: " f, ## a)
 
+#define svfs_exit(module, f, a...)              \
+    svfs_tracing((SVFS_ENTRY | SVFS_PRECISE),   \
+                 svfs_##module##_tracing_flags, \
+                 KERN_DEBUG, "exit: " f, ## a)
+
 #define svfs_warning(module, f, a...)           \
     svfs_tracing((SVFS_WARNING | SVFS_PRECISE), \
                  svfs_##module##_tracing_flags, \
@@ -151,6 +160,7 @@ extern struct inode *svfs_iget(struct super_block *, unsigned long);
 extern void svfs_truncate(struct inode *);
 /* APIs for namei.c */
 extern const struct inode_operations svfs_dir_inode_operations;
+extern struct dentry *svfs_get_parent(struct dentry *);
 /* APIs for sync.c */
 extern int svfs_sync_file(struct file *, struct dentry *, int);
 /* APIs for dir.c */
@@ -207,7 +217,8 @@ extern int svfs_lib_tracing_add(char *, unsigned int *);
 #ifdef SVFS_LOCAL_TEST
 extern char *svfs_backing_store;
 extern char *svfs_targeting_store;
-#define SVFS_BACKING_STORE_SIZE (10 * 1024 * 1024)
+/* #define SVFS_BACKING_STORE_SIZE (10 * 1024 * 1024) */
+#define SVFS_BACKING_STORE_SIZE (256 * 1024)
 extern ssize_t svfs_backing_store_write(struct svfs_super_block *);
 extern ssize_t svfs_backing_store_read(struct svfs_super_block *);
 extern void svfs_backing_store_commit_bse(struct inode *);
@@ -234,6 +245,8 @@ extern int svfs_backing_store_delete(struct svfs_super_block *,
                                      const char *);
 extern int svfs_backing_store_is_ood(struct inode *);
 extern int svfs_backing_store_scan(struct svfs_super_block *);
+extern unsigned long svfs_backing_store_lookup_parent(struct svfs_super_block *, 
+                                                      unsigned long);
 #endif
 
 /* relay operations */

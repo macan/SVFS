@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-07-01 15:34:49 macan>
+ * Time-stamp: <2009-07-22 17:08:39 macan>
  *
  * Supporting SVFS superblock operations.
  *
@@ -120,6 +120,53 @@ static void svfs_put_super(struct super_block *sb)
     svfs_debug(mdc, "release the svfs_super_blcok %p\n", ssb);
 }
 
+static struct inode *svfs_nfs_get_inode(struct super_block *sb,
+                                        u64 ino, u32 generation)
+{
+    struct inode *inode;
+
+    if (ino > SVFS_SB(sb)->bs_size)
+        return ERR_PTR(-ESTALE);
+
+    /* iget isn't really right if the inode is currently unallocated!!
+     *
+     * ext4_read_inode will return a bad_inode if the inode had been
+     * deleted, so we should be safe.
+     *
+     * Currently we don't know the generation for parent directory, so
+     * a generation of 0 means "accept any"
+     */
+    inode = svfs_iget(sb, ino);
+    if (IS_ERR(inode))
+        return ERR_CAST(inode);
+    if (generation && inode->i_generation != generation) {
+        iput(inode);
+        return ERR_PTR(-ESTALE);
+    }
+
+    return inode;
+}
+
+static struct dentry *svfs_fh_to_dentry(struct super_block *sb, struct fid *fid,
+                                        int fh_len, int fh_type)
+{
+    return generic_fh_to_dentry(sb, fid, fh_len, fh_type,
+                                svfs_nfs_get_inode);
+}
+
+static struct dentry *svfs_fh_to_parent(struct super_block *sb, struct fid *fid,
+                                        int fh_len, int fh_type)
+{
+    return generic_fh_to_parent(sb, fid, fh_len, fh_type,
+                                svfs_nfs_get_inode);
+}
+
+static const struct export_operations svfs_export_ops = {
+    .fh_to_dentry = svfs_fh_to_dentry,
+    .fh_to_parent = svfs_fh_to_parent,
+    .get_parent = svfs_get_parent,
+};
+
 static int svfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 {
     struct super_block *sb = dentry->d_sb;
@@ -234,6 +281,7 @@ static int svfs_fill_super(struct super_block *sb, struct vfsmount *vfsmnt)
     sb->s_blocksize = (1ULL << 12);
     sb->s_maxbytes = ~0ULL;
     sb->s_op = &svfs_sops;
+    sb->s_export_op = &svfs_export_ops;
 
     if (sb->s_flags & MS_RDONLY)
         ssb->flags |= SVFS_SB_RDONLY;

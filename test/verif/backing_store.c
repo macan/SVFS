@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-07-02 09:56:48 macan>
+ * Time-stamp: <2009-08-11 21:37:28 macan>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
  */
 
 #include "svfs.h"
+#include "svfs_i.h"
 
 static 
 ssize_t __svfs_backing_store_uread(struct file *filp, void *buf, 
@@ -147,6 +148,21 @@ unsigned long svfs_backing_store_lookup(struct svfs_super_block *ssb,
     return -1UL;
 }
 
+unsigned long svfs_backing_store_lookup_parent(struct svfs_super_block *ssb, 
+                                               unsigned long child_ino)
+{
+    struct backing_store_entry *bse = ssb->bse;
+
+    if (child_ino == SVFS_ROOT_INODE)
+        return SVFS_ROOT_INODE;
+    if (child_ino < SVFS_BACKING_STORE_SIZE /
+        sizeof(struct backing_store_entry)) {
+        bse += child_ino;
+        return bse->parent_offset;
+    }
+    return -1UL;
+}
+
 int svfs_backing_store_delete(struct svfs_super_block *ssb,
                               unsigned long dir_ino,
                               unsigned long ino,
@@ -186,6 +202,9 @@ int svfs_backing_store_scan(struct svfs_super_block *ssb)
     return rc;
 }
 
+/*
+ * @offset: the index of the dentry
+ */
 unsigned long svfs_backing_store_find_child(struct svfs_super_block *ssb,
                                             unsigned long parent_ino,
                                             unsigned long offset)
@@ -281,6 +300,7 @@ void svfs_backing_store_commit_bse(struct inode *inode)
     bse->atime = inode->i_atime;
     bse->ctime = inode->i_ctime;
     bse->mtime = inode->i_mtime;
+    bse->generation = inode->i_generation;
     bse->llfs_type = si->llfs_md.llfs_type;
     bse->llfs_fsid = si->llfs_md.llfs_fsid;
     /* FIXME: should copy the llfs_path to bse! */

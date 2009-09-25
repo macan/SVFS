@@ -2,7 +2,7 @@
  * Copyright (c) 2009 Ma Can <ml.macana@gmail.com>
  *                           <macan@ncic.ac.cn>
  *
- * Time-stamp: <2009-07-02 09:54:24 macan>
+ * Time-stamp: <2009-08-12 10:00:40 macan>
  *
  * inode.c for SVFS
  *
@@ -366,6 +366,7 @@ struct inode *svfs_iget(struct super_block *sb, unsigned long ino)
         inode->i_atime = bse->atime;
         inode->i_ctime = bse->ctime;
         inode->i_mtime = bse->mtime;
+        inode->i_generation = bse->generation;
         SVFS_I(inode)->flags = bse->disk_flags;
         /* get the ref path */
         SVFS_I(inode)->llfs_md.llfs_type = bse->llfs_type;
